@@ -77,13 +77,15 @@ def main():
     print("KPIs calculados:") 
     print(kpi_df)
     """ 
-
+    
+    """ 
     content_analysis_results = {}
     for username in all_profiles_to_scan:
         print(f"Analisando estratégia de conteúdo para: {username}") 
         analysis = engine.analyze_content_strategy_for_user(posts_df, username) 
-        content_analysis_results[username] = analysis 
-        
+        content_analysis_results[username] = analysis  
+    """
+    
     # 5. Geração do Relatório
     print("\nIniciando a geração do relatório .docx...") 
     REPORTS_PATH = "reports"
@@ -97,7 +99,8 @@ def main():
         client_name=client_name,
         profile_df=profile_df,
         posts_df=posts_df,
-        content_analysis=content_analysis_results,
+        #content_analysis=content_analysis_results,
+        content_analysis=False,
         output_path=report_path,
         template_path=TEMPLATE_PATH
     ) 

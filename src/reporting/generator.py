@@ -6,8 +6,10 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from docx import Document
 from docx.shared import Inches, Pt, RGBColor
+from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
+from langchain_ollama import ChatOllama
 
 # --- Funções Auxiliares de Estilização ---
 def set_cell_shading(cell, hex_color: str):
@@ -33,22 +35,6 @@ def set_header_style(table):
         p.alignment = 1 # WD_ALIGN_PARAGRAPH.CENTER
 
 # --- Funções de Geração de Gráficos ---
-def create_engagement_chart(df: pd.DataFrame) -> io.BytesIO:
-    """Cria um gráfico de barras de engajamento e o retorna como um buffer de memória.""" 
-    buffer = io.BytesIO() 
-    plt.figure(figsize=(10, 6)) 
-    sns.set_style("whitegrid") 
-    bar_plot = sns.barplot(x='Perfil', y='Taxa de Engajamento Média (%)', data=df, palette='viridis') 
-    plt.title('Comparativo de Taxa de Engajamento Média', fontsize=16) 
-    plt.ylabel('Taxa de Engajamento (%)', fontsize=12) 
-    plt.xlabel('Perfil', fontsize=12) 
-    plt.xticks(rotation=45, ha='right') 
-    plt.tight_layout() 
-    plt.savefig(buffer, format='png', dpi=300) 
-    plt.close() 
-    buffer.seek(0) 
-    return buffer 
-
 def criarFigura1(profile_df, posts_df) -> io.BytesIO:
     """Cria um gráfico de barras de engajamento e o retorna como um buffer de memória.""" 
     
@@ -68,43 +54,55 @@ def criarFigura1(profile_df, posts_df) -> io.BytesIO:
             ax1.set_title(f'Por Seguidores')
             ax1.set_xlabel('Seguidores')
 
+            return top_10_followers
+
         def plotarBarraPercEngajamento():
 
             # Calcular Estatísticas
-            top_10_followers = df_profiles_posts_int.groupby('username')[r'% ENGAJAMENTO'].max().sort_values(ascending=True).tail(10).reset_index()
+            top_10_perc_engaj = df_profiles_posts_int.groupby('username')[r'% ENGAJAMENTO'].max().sort_values(ascending=True).tail(10).reset_index()
 
             # Preparar cores e rótulos para o segundo gráfico
-            cores2 = ['#1f77b4'] * len(top_10_followers) # Cor padrão para as barras
+            cores2 = ['#1f77b4'] * len(top_10_perc_engaj) # Cor padrão para as barras
 
             # Plota o gráfico de barras
-            barras2 = ax2.barh(top_10_followers['username'], top_10_followers[r'% ENGAJAMENTO'], color=cores2)
+            barras2 = ax2.barh(top_10_perc_engaj['username'], top_10_perc_engaj[r'% ENGAJAMENTO'], color=cores2)
             ax2.bar_label(barras2, fmt='%.2f', padding=5)
             ax2.set_title(f'Por %-Engajamento')
             ax2.set_xlabel('%-Engajamento')
+
+            return top_10_perc_engaj
         
         def plotarBarraQtdEngajamento():
 
             # Calcular Estatísticas
-            top_10_followers = df_profiles_posts_int.groupby('username')['TOTAL ENGAJAMENTO'].max().sort_values(ascending=True).tail(10).reset_index()
+            top_10_engaj = df_profiles_posts_int.groupby('username')['TOTAL ENGAJAMENTO'].max().sort_values(ascending=True).tail(10).reset_index()
             
             # --- 5. Configuração do Segundo Gráfico (Inferior) ---
             # Preparar cores e rótulos para o segundo gráfico
-            cores2 = ['#1f77b4'] * len(top_10_followers) # Cor padrão para as barras
+            cores2 = ['#1f77b4'] * len(top_10_engaj) # Cor padrão para as barras
 
             # Plota o gráfico de barras
-            barras3 = ax3.barh(top_10_followers['username'], top_10_followers['TOTAL ENGAJAMENTO'], color=cores2)
+            barras3 = ax3.barh(top_10_engaj['username'], top_10_engaj['TOTAL ENGAJAMENTO'], color=cores2)
             ax3.bar_label(barras3, fmt='%d', padding=5)
             ax3.set_title(f'Por Qtd de Engajamentos')
             ax3.set_xlabel('Qtd Engajamento')
+
+            return top_10_engaj
         
         # --- 3. Criação da Figura e dos Gráficos (Subplots) ---
         # Cria a figura com 2 linhas e 1 coluna de gráficos
         fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(16, 5))
         fig.suptitle('Análise de Melhores Perfis', fontsize=16)
         
-        plotarBarraSeguidores()
-        plotarBarraPercEngajamento()
-        plotarBarraQtdEngajamento()
+        top_10_followers = plotarBarraSeguidores()
+        top_10_perc_engaj = plotarBarraPercEngajamento()
+        top_10_engaj = plotarBarraQtdEngajamento()
+
+        dataframes = {
+                        "followers": top_10_followers,
+                        "perc_engaj": top_10_perc_engaj,
+                        "engaj": top_10_engaj
+                    }
 
         # --- 6. Finalização e Exibição/Salvamento da Figura ---
         plt.tight_layout(rect=[0, 0, 1, 0.96]) # Ajusta o layout para evitar sobreposição
@@ -114,6 +112,8 @@ def criarFigura1(profile_df, posts_df) -> io.BytesIO:
 
         # Para exibir a figura diretamente (se estiver em um ambiente interativo como Jupyter)
         plt.show()
+
+        return dataframes
      
     def tratarDados():
     
@@ -138,10 +138,10 @@ def criarFigura1(profile_df, posts_df) -> io.BytesIO:
     
     buffer = io.BytesIO() 
     df_profiles_posts_int = tratarDados()
-    plotarFigura(df_profiles_posts_int)
+    dict_df = plotarFigura(df_profiles_posts_int)
     buffer.seek(0) 
     
-    return buffer 
+    return buffer, dict_df 
 
 # --- Função Principal de Geração de Relatório ---
 def generate_full_report(client_name, profile_df, posts_df, content_analysis, output_path, template_path):
@@ -149,18 +149,56 @@ def generate_full_report(client_name, profile_df, posts_df, content_analysis, ou
     document = Document(template_path) 
 
     # Titulo
-    document.add_heading(f"Análise de Concorrentes do Instagram para {client_name}", level=0) 
+    paragrafo_titulo = document.add_heading(f"Análise de Concorrentes no Instagram do negócio {client_name}", level=0)
+    paragrafo_titulo.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    document.add_page_break()
     
-    # Seção 1: Painel de KPIs
-    document.add_heading("Análise de Perfil dos Concorrentes", level=1)
+    # Estrutura Inicial
+    document.add_heading("Resumo", level=1)
+    document.add_heading("1.0 Introdução", level=1)
+    document.add_heading("2.0 Análise dos Concorrentes", level=1)
+    
+    # Seção 2.1: Perfil dos Concorrentes
+    document.add_heading("2.1 Análise de Perfil dos Concorrentes", level=2)
     document.add_paragraph(f"Nesta seção será realizada uma análise comparativa entre os concorrentes do {client_name}. "
                            "Além de ser analisadas, métricas de performance, frequência e recência dos perfis, também serão analisados,"
                            "qualitativamente, seus respectivos conteúdos, bem como o tom de voz, tópicos frequentes e posicionamento de marca.")
-  
-    # Adiciona gráfico de engajamento 
-    chart_buffer = criarFigura1(profile_df, posts_df)
-    document.add_picture(chart_buffer, width=Inches(6.5)) 
-    document.add_page_break()
+    
+    # Adiciona Figura 1
+    paragrafo_da_imagem = document.add_paragraph()
+    paragrafo_da_imagem.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    run_da_imagem = paragrafo_da_imagem.add_run() 
+    chart_buffer, dict_df = criarFigura1(profile_df, posts_df)
+    run_da_imagem.add_picture(chart_buffer, width=Inches(6))
+
+    # Gerar Análise dos Dados da Figura 1
+    llm = ChatOllama(model="llama3.2:latest", temperature=0) 
+    for nome_df, df in dict_df.items():
+
+        if not df.empty:
+            df_ord = df.sort_values(by=str(df.columns[-1]), ascending=False)
+        else:
+            df_ord = df
+        print(df_ord, end='\n')
+    
+        if nome_df == 'followers':
+            inicio = "De acordo com o primeiro gráfico da figura acima..."
+        elif nome_df == 'perc_engaj':
+            inicio = "Já de acordo com o segundo gráfico da figura..."
+        elif nome_df == 'engaj':
+            inicio = "Quanto ao último gráfico da figura acima..."
+        
+        prompt = f"""
+        Persona: Você é um analista\estrategista de marketing de mídias sociais sênior, especialista em social metrics. 
+        Contexto: Produza uma análise detalhada com a sua interpretação dos dados do gráfico de barras dos perfis concorrentes do cliente "{client_name}". 
+        Tarefa: Gere um texto científico detalhado de 1 parágrafo com sua análise. 
+        Formato: Responda apenas o parágrafo da análise.
+        Requisito: Inicie o texto dizendo {inicio}.
+        Dados: {df_ord}
+        """
+    
+        analise = llm.invoke(prompt) 
+        document.add_paragraph(analise.content)
     
     """ 
     # Adiciona gráfico de engajamento

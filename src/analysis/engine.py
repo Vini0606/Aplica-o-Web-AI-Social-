@@ -87,4 +87,4 @@ def analyze_content_strategy_for_user(posts_df: pd.DataFrame, username: str) -> 
         return structured_llm.invoke(prompt) 
     except Exception as e:
         print(f"Falha na análise de conteúdo para {username}: {e}") 
-        return ContentStrategyAnalysis(content_pillars=[], tone_of_voice="Erro na análise", summary="Erro na análise.") 
+        return ContentStrategyAnalysis(content_pillars=[], tone_of_voice="Erro na análise", summary="Erro na análise.")
