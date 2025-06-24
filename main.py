@@ -67,13 +67,16 @@ def main():
 
     """
     
-    # 4. Análise dos Dados
-    print("\nIniciando a análise dos dados...") 
     profile_df = engine.load_profiles_to_df(profile_data_path) 
     posts_df = engine.load_posts_to_df(post_data_path) 
+     
+    """
+    # 4. Análise dos Dados
+    print("\nIniciando a análise dos dados...")
     kpi_df = engine.calculate_kpis(profile_df, posts_df) 
     print("KPIs calculados:") 
-    print(kpi_df) 
+    print(kpi_df)
+    """ 
 
     content_analysis_results = {}
     for username in all_profiles_to_scan:
@@ -92,7 +95,8 @@ def main():
     
     generator.generate_full_report(
         client_name=client_name,
-        kpi_df=kpi_df,
+        profile_df=profile_df,
+        posts_df=posts_df,
         content_analysis=content_analysis_results,
         output_path=report_path,
         template_path=TEMPLATE_PATH
