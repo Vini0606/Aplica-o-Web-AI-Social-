@@ -1,0 +1,13 @@
+# Ambientes Virtuais
+modulo_gestao_conteudo_av/
+
+# Arquivo de credenciais
+.env
+
+# Diretórios de dados e relatórios
+data/
+reports/
+
+# Caches do Python
+__pycache__/
+*.pyc

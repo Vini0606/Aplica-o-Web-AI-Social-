@@ -1,0 +1,9 @@
+modulo_gestao_conteudo/config
+modulo_gestao_conteudo/data/processed
+modulo_gestao_conteudo/data/raw
+modulo_gestao_conteudo/notebooks
+modulo_gestao_conteudo/reports
+modulo_gestao_conteudo/src/analysis
+modulo_gestao_conteudo/src/data_ingestion
+modulo_gestao_conteudo/src/reporting
+modulo_gestao_conteudo/templates

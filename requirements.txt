@@ -1,0 +1,10 @@
+apify-client
+langchain
+langchain-openai
+langchain-groq
+langchain-ollama
+python-docx
+pandas
+matplotlib
+seaborn
+python-dotenv
