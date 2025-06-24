@@ -143,6 +143,92 @@ def criarFigura1(profile_df, posts_df) -> io.BytesIO:
     
     return buffer, dict_df 
 
+def plotarFigura1(client_name, profile_df, posts_df):
+
+    def tratarDados():
+        
+        # LINHA CRÍTICA A SER ADICIONADA:
+        # Carregue o arquivo JSON para um DataFrame
+        posts_df = pd.read_json("data/raw/post_data.json")
+
+        # Tratar Dados
+        posts_df['data_hora'] = pd.to_datetime(posts_df['timestamp'])
+
+        posts_df_gruped = posts_df.groupby(['ownerId', 'ownerUsername']).agg(
+        commentsSum=('commentsCount', 'sum'),
+        likesSum=('likesCount', 'sum'),
+        minData=('data_hora', 'min'),
+        maxData=('data_hora', 'max'),
+        count=('ownerId', 'count')
+        ).reset_index()
+
+        df_profiles_posts_int = pd.merge(profile_df, posts_df_gruped, left_on='id', right_on='ownerId', how='left').drop(['ownerId'], axis=1)
+        df_profiles_posts_int['TOTAL ENGAJAMENTO'] = (df_profiles_posts_int['commentsSum'] + df_profiles_posts_int['likesSum'])
+        df_profiles_posts_int[r'% ENGAJAMENTO'] =  df_profiles_posts_int['TOTAL ENGAJAMENTO'] / df_profiles_posts_int['followersCount']
+        df_profiles_posts_int['RECENCIA'] = 1 / ((df_profiles_posts_int['maxData'].max() - df_profiles_posts_int['maxData']).dt.days + 1)
+        df_profiles_posts_int['FREQUENCIA'] = df_profiles_posts_int['count'] / ((df_profiles_posts_int['maxData'] - df_profiles_posts_int['minData']).dt.days + 1)
+        
+        return df_profiles_posts_int
+       
+    def plotarBarraMax(client_name, x_col, y_col, ax1):
+        
+        # Calcular Estatísticas
+        top_10 = df_profiles_posts_int.groupby([y_col])[x_col].max().sort_values(ascending=True).tail(10).reset_index()
+        
+        # --- 4. Configuração do Primeiro Gráfico (Superior) ---
+        # Preparar cores e rótulos para o primeiro gráfico
+        cores1 = ['#1f77b4'] * 10 # Cor padrão para as barras
+        
+        if client_name in list(top_10['username']):
+            try:
+                # Encontra a posição (índice) do elemento X nos dados ordenados
+                indice_x = top_10.loc[top_10[y_col] == client_name].index[0]
+                cores1[indice_x] = '#000080' # Cor de destaque para o elemento X
+                print('Cor alterada com Sucesso!')
+            except KeyError:
+                indice_x = -1 # Trata o caso do elemento não ser encontrado
+
+        # Plota o gráfico de barras
+        barras1 = ax1.barh(top_10[y_col], top_10[x_col], color=cores1)
+        ax1.bar_label(barras1, fmt='%d', padding=5)
+        ax1.set_title(f'{y_col} X {x_col}')
+        ax1.set_xlabel(x_col)
+        ax1.set_ylabel(y_col)
+
+        return top_10
+
+    # --- 3. Criação da Figura e dos Gráficos (Subplots) ---
+    # Cria a figura com 2 linhas e 1 coluna de gráficos
+    fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(16, 5))
+    fig.suptitle('Análise de Melhores Perfis', fontsize=16)
+
+    df_profiles_posts_int = tratarDados()
+      
+    top_10_followers = plotarBarraMax(client_name, 'followersCount', 'username', ax1)
+    top_10_follows = plotarBarraMax(client_name, 'followsCount', 'username', ax2)
+    top_10_posts_count = plotarBarraMax(client_name, 'postsCount', 'username', ax3)
+
+    dataframes = {
+                    "followers": top_10_followers,
+                    "follows": top_10_follows,
+                    "posts_count": top_10_posts_count
+    }
+
+    # --- 6. Finalização e Exibição/Salvamento da Figura ---
+    plt.tight_layout(rect=[0, 0, 1, 0.96]) # Ajusta o layout para evitar sobreposição
+
+    buffer = io.BytesIO() 
+    
+    # Para salvar a figura em um arquivo
+    plt.savefig(buffer, format='png', dpi=300)
+
+    # Para exibir a figura diretamente (se estiver em um ambiente interativo como Jupyter)
+    plt.show()
+
+    print("Figura 'graficos_de_barras_destacados.png' gerada com sucesso.")
+
+    return buffer, dataframes
+
 # --- Função Principal de Geração de Relatório ---
 def generate_full_report(client_name, profile_df, posts_df, content_analysis, output_path, template_path):
     """Gera o relatório completo em .docx."""
@@ -159,20 +245,35 @@ def generate_full_report(client_name, profile_df, posts_df, content_analysis, ou
     document.add_heading("2.0 Análise dos Concorrentes", level=1)
     
     # Seção 2.1: Perfil dos Concorrentes
-    document.add_heading("2.1 Análise de Perfil dos Concorrentes", level=2)
-    document.add_paragraph(f"Nesta seção será realizada uma análise comparativa entre os concorrentes do {client_name}. "
-                           "Além de ser analisadas, métricas de performance, frequência e recência dos perfis, também serão analisados,"
-                           "qualitativamente, seus respectivos conteúdos, bem como o tom de voz, tópicos frequentes e posicionamento de marca.")
+    #texto_secao_2_1 = (f"Para que se possa cumprir com o objetivo de analisar o perfil dos concorrentes da empresa {client_name}, "
+    #                    "A figura abaixo nos dá uma visão geral sobre quem são os melhores concorrentes do negócio, "
+    #                    "segundo os indicadores de interesse, tanto a nível de perfil quanto a nível de publicações.")
     
+    texto_secao_2_1 = (f"Nesta seção será realizada uma análise comparativa entre os concorrentes do Jeronim Rodrigues Ba, "
+                   "a fim de traçar os seus perfis. Além de serem analisadas métricas de performance, frequência e recência, "
+                   "também serão analisados, qualitativamente, seus respectivos conteúdos, bem como o tom de voz, tópicos frequentes "
+                   "e posicionamento de marca. O principal objetivo desta seção é o de avaliar a presença visual, textual e social "
+                   "dos concorrentes e seus respectivos posicionamentos com indicadores e análises estratégicos dos perfis e conteúdos "
+                   "dos concorrentes.")
+    
+    document.add_heading("2.1 Análise de Perfil dos Concorrentes", level=2)
+    document.add_paragraph(texto_secao_2_1)
+    
+    document.add_paragraph()
+
+    document.add_paragraph(f"A figura abaixo nos dá uma visão geral sobre quem são os melhores concorrentes do negócio, "
+                           "segundo os indicadores de interesse, tanto a nível de perfil quanto a nível de publicações.")
+  
     # Adiciona Figura 1
     paragrafo_da_imagem = document.add_paragraph()
     paragrafo_da_imagem.alignment = WD_ALIGN_PARAGRAPH.CENTER
     run_da_imagem = paragrafo_da_imagem.add_run() 
-    chart_buffer, dict_df = criarFigura1(profile_df, posts_df)
+    chart_buffer, dict_df = plotarFigura1(client_name, profile_df, client_name)
     run_da_imagem.add_picture(chart_buffer, width=Inches(6))
 
     # Gerar Análise dos Dados da Figura 1
     llm = ChatOllama(model="llama3.2:latest", temperature=0) 
+    textos_analises = []
     for nome_df, df in dict_df.items():
 
         if not df.empty:
@@ -197,9 +298,13 @@ def generate_full_report(client_name, profile_df, posts_df, content_analysis, ou
         Dados: {df_ord}
         """
     
-        analise = llm.invoke(prompt) 
-        document.add_paragraph(analise.content)
+        analise = llm.invoke(prompt)
+        textos_analises.append(analise.content)
     
+    
+    analise_figura_1 = '\n\n'.join(textos_analises)
+    document.add_paragraph(analise_figura_1)
+
     """ 
     # Adiciona gráfico de engajamento
     document.add_paragraph("\nVisualização da Taxa de Engajamento:", style='Intense Quote') 
