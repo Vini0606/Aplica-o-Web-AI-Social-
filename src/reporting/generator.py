@@ -14,6 +14,19 @@ from langchain_ollama import ChatOllama
 from .AutoClusterHPO import AutoClusterHPO
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
+from wordcloud import WordCloud
+from datetime import date
+import locale
+
+try:
+    locale.setlocale(locale.LC_TIME, 'pt_BR.UTF-8')
+except locale.Error:
+    try:
+        locale.setlocale(locale.LC_TIME, 'Portuguese_Brazil')
+    except locale.Error:
+        # Caso nenhum dos locales seja encontrado, imprime um aviso.
+        # A data pode sair em inglês ou no formato padrão do sistema.
+        print("Aviso: Não foi possível configurar o idioma para português do Brasil. A data pode ser exibida em outro idioma.")
 
 # --- Funções Auxiliares de Estilização ---
 def set_cell_shading(cell, hex_color: str):
@@ -254,10 +267,144 @@ def plotarFigura2(profile_df, posts_df):
 
     return buffer, dataframes
 
+def plotarFigura3(profile_df, posts_df):
+
+    def plotarNuvemPalavras():
+
+        lista_unica = []
+
+        for sublista in posts_df['hashtags']:
+            for item in sublista:
+                lista_unica.append(item)
+
+        # Seu texto aqui
+        texto = " ".join(lista_unica)
+
+        # Criar o objeto WordCloud
+        nuvem_palavras = WordCloud(width=800, height=400, background_color="white").generate(texto)
+        
+        return nuvem_palavras, pd.DataFrame(lista_unica).value_counts()
+
+    nuvem_palavras, df = plotarNuvemPalavras()
+
+    # Exibir a imagem gerada
+    plt.figure(figsize=(16, 8))
+    plt.imshow(nuvem_palavras, interpolation='bilinear')
+    plt.axis("off") # Remove os eixos
+
+    # --- 6. Finalização e Exibição/Salvamento da Figura ---
+    plt.tight_layout(rect=[0, 0, 1, 0.96]) # Ajusta o layout para evitar sobreposição
+
+    buffer = io.BytesIO() 
+        
+    # Para salvar a figura em um arquivo
+    plt.savefig(buffer, format='png', dpi=300)
+        
+    plt.show()
+
+    buffer.seek(0)
+
+    return buffer, df 
+
+# --- Funções de Geração de Seções
+def gerarCapaResumo(document, titulo, cliente, autor, data, resumo_profissional):
+    """
+    Gera um documento Word com capa e resumo profissional para uma análise de concorrentes.
+
+    Args:
+        titulo (str): O título do relatório.
+        cliente (str): O nome do cliente para quem a análise foi preparada.
+        autor (str): O nome do autor ou da agência/consultoria.
+        data (str): A data de publicação do relatório.
+        resumo_profissional (str): O texto do resumo profissional.
+    """
+    # --- Seção da Capa ---
+
+    # Título do Relatório
+    titulo_principal = document.add_heading(titulo, level=1)
+    titulo_principal.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    for run in titulo_principal.runs:
+        run.font.size = Pt(24)
+        run.bold = True
+
+    # Adiciona espaçamento após o título
+    document.add_paragraph()
+    document.add_paragraph()
+
+    # Informações do Cliente e Autor
+    p_info = document.add_paragraph()
+    p_info.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_info.add_run(f'Preparado para:\n{cliente}\n\n').bold = True
+    p_info.add_run(f'Análise por:\n{autor}\n\n')
+
+    # Data
+    p_data = document.add_paragraph()
+    p_data.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_data.add_run(data)
+
+    # Adiciona quebra de página
+    document.add_page_break()
+
+    # --- Seção do Resumo Profissional ---
+
+    # Título do Resumo
+    titulo_resumo = document.add_heading('Resumo Profissional', level=2)
+    for run in titulo_resumo.runs:
+        run.font.size = Pt(16)
+        run.bold = True
+
+    # Corpo do Resumo
+    p_resumo = document.add_paragraph(resumo_profissional)
+    p_resumo.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+
+    # Salva o documento
+    nome_arquivo = f"Analise_Concorrentes_Instagram_{cliente.replace(' ', '_')}.docx"
+    document.save(nome_arquivo)
+    print(f"Relatório '{nome_arquivo}' gerado com sucesso!")
+
 # --- Função Principal de Geração de Relatório ---
 def generate_full_report(client_name, profile_df, posts_df, content_analysis, output_path, template_path):
     
     """Gera o relatório completo em .docx."""
+    
+    def criarSecaoCapaResumo():
+
+        # Título do Relatório
+        titulo_principal = document.add_heading(titulo, level=1)
+        titulo_principal.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        for run in titulo_principal.runs:
+            run.font.size = Pt(24)
+            run.bold = True
+
+            # Adiciona espaçamento após o título
+            document.add_paragraph()
+            document.add_paragraph()
+
+            # Informações do Autor e Instituição
+            p_autor = document.add_paragraph()
+            p_autor.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            p_autor.add_run(f'Preparado por:\n{autor}\n\n').bold = True
+            p_autor.add_run(f'Instituição:\n{instituicao}\n\n')
+
+            # Data
+            p_data = document.add_paragraph()
+            p_data.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            p_data.add_run(data)
+
+            # Adiciona quebra de página para separar a capa do conteúdo
+            document.add_page_break()
+
+            # --- Seção do Resumo Profissional ---
+
+            # Título do Resumo
+            titulo_resumo = document.add_heading('Resumo Profissional', level=2)
+            for run in titulo_resumo.runs:
+                run.font.size = Pt(16)
+                run.bold = True
+
+            # Corpo do Resumo
+            p_resumo = document.add_paragraph(resumo_profissional)
+            p_resumo.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
     
     def analisarFigura1():
         
@@ -363,7 +510,7 @@ def generate_full_report(client_name, profile_df, posts_df, content_analysis, ou
             
             prompt = f"""
             Persona: Você é um analista\estrategista de marketing de mídias sociais sênior, especialista em social metrics. 
-            Contexto: Produza uma análise detalhada com a sua interpretação dos dados do gráfico de barras dos perfis concorrentes do cliente "{client_name}". 
+            Contexto: Produza uma análise detalhada com a sua interpretação dos dados dos gráficos dos perfis concorrentes do cliente "{client_name}" abaixo. 
             Tarefa: Gere um texto científico detalhado de 1 parágrafo com sua análise. 
             Formato: Responda apenas o parágrafo da análise.
             Requisito: Inicie o texto dizendo {inicio}.
@@ -388,10 +535,80 @@ def generate_full_report(client_name, profile_df, posts_df, content_analysis, ou
         print()
         recomendacoes = llm.invoke(prompt)
         print(f'Recomendações: {recomendacoes.content}')
+        document.add_paragraph(recomendacoes.content) 
+        
+    def analisarFigura3():
+        
+        document.add_paragraph()
+        document.add_paragraph(f" Na análise seguinte, será possível perceber uma visão geral sobre as hashtags utilizadas pelos concorrentes "
+                            "por meio de uma nuvem de palavras. Uma nuvem de palavras (ou word cloud) é uma representação visual de texto onde "
+                            "as palavras mais frequentes aparecem em destaque, com um tamanho maior ou cor diferente, enquanto as menos comuns "
+                            "são menores. É usada para identificar rapidamente os termos mais importantes ou populares em um conjunto de dados textuais. ")
+    
+        document.add_paragraph()
+        
+        # Adiciona Figura 1
+        paragrafo_da_imagem = document.add_paragraph()
+        paragrafo_da_imagem.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        run_da_imagem = paragrafo_da_imagem.add_run() 
+        chart_buffer, df = plotarFigura3(profile_df, posts_df)
+        run_da_imagem.add_picture(chart_buffer, width=Inches(6))
+
+        # Gerar Análise dos Dados da Figura 1
+        llm = ChatOllama(model="llama3.2:latest", temperature=0) 
+
+        prompt = f"""
+            Persona: Você é um analista\estrategista de marketing de mídias sociais sênior, especialista em social metrics. 
+            Contexto: Produza uma análise detalhada com a sua interpretação dos dados da tabela de frequências das hashtags utilizadas pelos concorrentes do cliente "{client_name}". 
+            Tarefa: Gere um texto científico detalhado de 2 parágrafos com sua análise. 
+            Formato: Responda apenas os parágrafos da análise.
+            Requisito: Inicie o texto dizendo "De acordo com a nuvem de palavras acima...".
+            Dados: {df}
+            """
+        
+        analise = llm.invoke(prompt)
+        document.add_paragraph(analise.content)
+
+        prompt = f"""
+            Persona: Você é um estrategista de marketing de mídias sociais sênior, especialista em social metrics. 
+            Contexto: Com base nesta analise abaixo, quais recomendações você sugere para a estratégia do cliente "{client_name}" no instagram? Justifique de forma clara cada uma delas
+            Tarefa: Gere um texto detalhado de 1 parágrafo com suas recomendações. 
+            Formato: Responda apenas o parágrafo das recomendações.
+            Requisito: Inicie o texto dizendo "Com base nas análises acima..."
+            Analises: {analise}
+        """
+        
+        print()
+        recomendacoes = llm.invoke(prompt)
+        print(f'Recomendações: {recomendacoes.content}')
         document.add_paragraph(recomendacoes.content)
     
-    document = Document(template_path) 
+    document = Document(template_path)
 
+    titulo_analise = "Análise de Concorrentes no Instagram"
+    nome_cliente = "Cliente X"
+    nome_autor = "Sua Agência / Seu Nome"
+    data_analise = f"{date.today().strftime("%A, %d de %B de %Y")}"
+    texto_resumo = (
+        "Este relatório apresenta uma análise competitiva do desempenho no Instagram, "
+        "preparada para o Cliente X. O estudo foi conduzido entre maio e junho de 2025 e "
+        "avaliou os perfis dos principais concorrentes: Concorrente A, Concorrente B e "
+        "Concorrente C. A análise focou em métricas de engajamento, crescimento de seguidores, "
+        "estratégia de conteúdo e frequência de postagens. Os resultados indicam que o "
+        "Concorrente B lidera em engajamento, utilizando fortemente o formato de Reels com "
+        "conteúdo gerado pelo usuário. O Concorrente A, por sua vez, demonstra um crescimento "
+        "acelerado de seguidores através de parcerias com influenciadores. Identificou-se uma "
+        "oportunidade para o Cliente X explorar o formato de Stories interativos (enquetes, "
+        "caixas de perguntas), pouco utilizado pela concorrência. Recomenda-se a adoção de uma "
+        "estratégia de conteúdo em vídeo mais robusta, similar à do Concorrente B, e a "
+        "implementação de um calendário editorial que inclua colaborações estratégicas para "
+        "aumentar o alcance e o engajamento do perfil."
+    )
+    
+    gerarCapaResumo(document, titulo_analise, nome_cliente, nome_autor, data_analise, texto_resumo) 
+
+    """ 
+    
     # Titulo
     paragrafo_titulo = document.add_heading(f"Análise de Concorrentes no Instagram do negócio {client_name}", level=0)
     paragrafo_titulo.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -399,6 +616,9 @@ def generate_full_report(client_name, profile_df, posts_df, content_analysis, ou
     
     # Estrutura Inicial
     document.add_heading("Resumo", level=1)
+    
+    """
+    # Estrutura Inicial
     document.add_heading("1.0 Introdução", level=1)
     document.add_heading("2.0 Análise dos Concorrentes", level=1)
     
@@ -414,6 +634,7 @@ def generate_full_report(client_name, profile_df, posts_df, content_analysis, ou
 
     analisarFigura1()
     analisarFigura2()
+    analisarFigura3()
     
     # Salva o documento
     document.save(output_path) 
