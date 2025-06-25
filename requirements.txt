@@ -5,6 +5,11 @@ langchain-groq
 langchain-ollama
 python-docx
 pandas
+setuptools
 matplotlib
+matplotlib-inline
 seaborn
 python-dotenv
+numpy
+scikit-learn
+hyperopt

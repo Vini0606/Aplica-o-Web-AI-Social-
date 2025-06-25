@@ -3,6 +3,7 @@
 import io
 import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib import gridspec
 import seaborn as sns
 from docx import Document
 from docx.shared import Inches, Pt, RGBColor
@@ -10,6 +11,9 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
 from langchain_ollama import ChatOllama
+from .AutoClusterHPO import AutoClusterHPO
+from sklearn.preprocessing import StandardScaler
+from sklearn.decomposition import PCA
 
 # --- Funções Auxiliares de Estilização ---
 def set_cell_shading(cell, hex_color: str):
@@ -35,114 +39,6 @@ def set_header_style(table):
         p.alignment = 1 # WD_ALIGN_PARAGRAPH.CENTER
 
 # --- Funções de Geração de Gráficos ---
-def criarFigura1(profile_df, posts_df) -> io.BytesIO:
-    """Cria um gráfico de barras de engajamento e o retorna como um buffer de memória.""" 
-    
-    def plotarFigura(df_profiles_posts_int):
-    
-        def plotarBarraSeguidores():
-            
-            # Calcular Estatísticas
-            top_10_followers = df_profiles_posts_int.groupby('username')['followersCount'].sum().sort_values(ascending=True).tail(10).reset_index()
-            
-            # Preparar cores e rótulos para o primeiro gráfico
-            cores1 = ['#1f77b4'] * 10 # Cor padrão para as barras
-
-            # Plota o gráfico de barras
-            barras1 = ax1.barh(top_10_followers['username'], top_10_followers['followersCount'], color=cores1)
-            ax1.bar_label(barras1, fmt='%d', padding=5)
-            ax1.set_title(f'Por Seguidores')
-            ax1.set_xlabel('Seguidores')
-
-            return top_10_followers
-
-        def plotarBarraPercEngajamento():
-
-            # Calcular Estatísticas
-            top_10_perc_engaj = df_profiles_posts_int.groupby('username')[r'% ENGAJAMENTO'].max().sort_values(ascending=True).tail(10).reset_index()
-
-            # Preparar cores e rótulos para o segundo gráfico
-            cores2 = ['#1f77b4'] * len(top_10_perc_engaj) # Cor padrão para as barras
-
-            # Plota o gráfico de barras
-            barras2 = ax2.barh(top_10_perc_engaj['username'], top_10_perc_engaj[r'% ENGAJAMENTO'], color=cores2)
-            ax2.bar_label(barras2, fmt='%.2f', padding=5)
-            ax2.set_title(f'Por %-Engajamento')
-            ax2.set_xlabel('%-Engajamento')
-
-            return top_10_perc_engaj
-        
-        def plotarBarraQtdEngajamento():
-
-            # Calcular Estatísticas
-            top_10_engaj = df_profiles_posts_int.groupby('username')['TOTAL ENGAJAMENTO'].max().sort_values(ascending=True).tail(10).reset_index()
-            
-            # --- 5. Configuração do Segundo Gráfico (Inferior) ---
-            # Preparar cores e rótulos para o segundo gráfico
-            cores2 = ['#1f77b4'] * len(top_10_engaj) # Cor padrão para as barras
-
-            # Plota o gráfico de barras
-            barras3 = ax3.barh(top_10_engaj['username'], top_10_engaj['TOTAL ENGAJAMENTO'], color=cores2)
-            ax3.bar_label(barras3, fmt='%d', padding=5)
-            ax3.set_title(f'Por Qtd de Engajamentos')
-            ax3.set_xlabel('Qtd Engajamento')
-
-            return top_10_engaj
-        
-        # --- 3. Criação da Figura e dos Gráficos (Subplots) ---
-        # Cria a figura com 2 linhas e 1 coluna de gráficos
-        fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(16, 5))
-        fig.suptitle('Análise de Melhores Perfis', fontsize=16)
-        
-        top_10_followers = plotarBarraSeguidores()
-        top_10_perc_engaj = plotarBarraPercEngajamento()
-        top_10_engaj = plotarBarraQtdEngajamento()
-
-        dataframes = {
-                        "followers": top_10_followers,
-                        "perc_engaj": top_10_perc_engaj,
-                        "engaj": top_10_engaj
-                    }
-
-        # --- 6. Finalização e Exibição/Salvamento da Figura ---
-        plt.tight_layout(rect=[0, 0, 1, 0.96]) # Ajusta o layout para evitar sobreposição
-
-        # Para salvar a figura em um arquivo
-        plt.savefig(buffer, format='png', dpi=300)
-
-        # Para exibir a figura diretamente (se estiver em um ambiente interativo como Jupyter)
-        plt.show()
-
-        return dataframes
-     
-    def tratarDados():
-    
-        # Tratar Dados
-        posts_df['data_hora'] = pd.to_datetime(posts_df['timestamp'])
-
-        posts_df_gruped = posts_df.groupby(['ownerId', 'ownerUsername']).agg(
-        commentsSum=('commentsCount', 'sum'),
-        likesSum=('likesCount', 'sum'),
-        minData=('data_hora', 'min'),
-        maxData=('data_hora', 'max'),
-        count=('ownerId', 'count')
-        ).reset_index()
-
-        df_profiles_posts_int = pd.merge(profile_df, posts_df_gruped, left_on='id', right_on='ownerId', how='left').drop(['ownerId'], axis=1)
-        df_profiles_posts_int['TOTAL ENGAJAMENTO'] = (df_profiles_posts_int['commentsSum'] + df_profiles_posts_int['likesSum'])
-        df_profiles_posts_int[r'% ENGAJAMENTO'] =  df_profiles_posts_int['TOTAL ENGAJAMENTO'] / df_profiles_posts_int['followersCount']
-        df_profiles_posts_int['RECENCIA'] = 1 / ((df_profiles_posts_int['maxData'].max() - df_profiles_posts_int['maxData']).dt.days + 1)
-        df_profiles_posts_int['FREQUENCIA'] = df_profiles_posts_int['count'] / ((df_profiles_posts_int['maxData'] - df_profiles_posts_int['minData']).dt.days + 1)
-        
-        return df_profiles_posts_int
-    
-    buffer = io.BytesIO() 
-    df_profiles_posts_int = tratarDados()
-    dict_df = plotarFigura(df_profiles_posts_int)
-    buffer.seek(0) 
-    
-    return buffer, dict_df 
-
 def plotarFigura1(client_name, profile_df, posts_df):
 
     def tratarDados():
@@ -200,7 +96,6 @@ def plotarFigura1(client_name, profile_df, posts_df):
     # --- 3. Criação da Figura e dos Gráficos (Subplots) ---
     # Cria a figura com 2 linhas e 1 coluna de gráficos
     fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(16, 5))
-    fig.suptitle('Análise de Melhores Perfis', fontsize=16)
 
     df_profiles_posts_int = tratarDados()
       
@@ -223,15 +118,278 @@ def plotarFigura1(client_name, profile_df, posts_df):
     plt.savefig(buffer, format='png', dpi=300)
 
     # Para exibir a figura diretamente (se estiver em um ambiente interativo como Jupyter)
-    plt.show()
+    plt.close()
+
+    buffer.seek(0)
 
     print("Figura 'graficos_de_barras_destacados.png' gerada com sucesso.")
 
     return buffer, dataframes
 
+def plotarFigura2(profile_df, posts_df):
+    
+    def tratarDados():
+        
+        # LINHA CRÍTICA A SER ADICIONADA:
+        # Carregue o arquivo JSON para um DataFrame
+
+        # Tratar Dados
+        posts_df['data_hora'] = pd.to_datetime(posts_df['timestamp'])
+
+        posts_df_gruped = posts_df.groupby(['ownerId', 'ownerUsername']).agg(
+        commentsSum=('commentsCount', 'sum'),
+        likesSum=('likesCount', 'sum'),
+        minData=('data_hora', 'min'),
+        maxData=('data_hora', 'max'),
+        count=('ownerId', 'count')
+        ).reset_index()
+
+        df_profiles_posts_int = pd.merge(profile_df, posts_df_gruped, left_on='id', right_on='ownerId', how='left').drop(['ownerId'], axis=1)
+        df_profiles_posts_int['TOTAL ENGAJAMENTO'] = (df_profiles_posts_int['commentsSum'] + df_profiles_posts_int['likesSum'])
+        df_profiles_posts_int[r'% ENGAJAMENTO'] =  df_profiles_posts_int['TOTAL ENGAJAMENTO'] / df_profiles_posts_int['followersCount']
+        df_profiles_posts_int['RECENCIA'] = 1 / ((df_profiles_posts_int['maxData'].max() - df_profiles_posts_int['maxData']).dt.days + 1)
+        df_profiles_posts_int['FREQUENCIA'] = df_profiles_posts_int['count'] / ((df_profiles_posts_int['maxData'] - df_profiles_posts_int['minData']).dt.days + 1)
+        
+        return df_profiles_posts_int
+    
+    def plotarFiguraNColsPCA(df_original, df_cluster, fig):
+            
+        def plotarDispersao(fig):
+            
+            cluster_columns = [column for column in df_cluster.columns if column != 'Clusters (AutoClusterHPO)']
+            
+            # Redução de dimensionalidade com PCA
+            pca = PCA(n_components=2)
+            df_pca = pca.fit_transform(df_original[cluster_columns])
+            df_original_copy['pca_x'] = df_pca[:, 0]
+            df_original_copy['pca_y'] = df_pca[:, 1]
+                
+            # Visualização dos clusters com PCA
+            axes_gs_principal = fig.add_subplot(gs_principal[0])
+            sns.scatterplot(data=df_original_copy, x='pca_x', y='pca_y', hue='Clusters (AutoClusterHPO)', palette='deep', s=100, ax=axes_gs_principal) 
+            axes_gs_principal.set_title(f" X ".join(cluster_columns))
+            axes_gs_principal.set_xlabel('Componente Principal 1')
+            axes_gs_principal.set_ylabel('Componente Principal 2')
+            axes_gs_principal.grid(True)
+
+            return df_original_copy[['pca_x', 'pca_y', 'Clusters (AutoClusterHPO)']]
+        
+        def plotarBarras(fig):
+            
+            df_original['Clusters (AutoClusterHPO)'] = 'Cluster ' + df_original['Clusters (AutoClusterHPO)'].astype(str)
+                
+            media_1 = df_original.groupby('Clusters (AutoClusterHPO)')[str(df_cluster.columns[0])].mean().reset_index().sort_values(by=str(df_cluster.columns[0]), ascending=True)
+            media_2 = df_original.groupby('Clusters (AutoClusterHPO)')[str(df_cluster.columns[1])].mean().reset_index().sort_values(by=str(df_cluster.columns[1]), ascending=True)
+            media_3 = df_original.groupby('Clusters (AutoClusterHPO)')[str(df_cluster.columns[2])].mean().reset_index().sort_values(by=str(df_cluster.columns[2]), ascending=True)
+                
+                
+            # Plotar Gráfico de Barra 1
+            axes_gs_0 = fig.add_subplot(gs[0])
+            axes_gs_0.set_title(f'Clusters X {str(df_cluster.columns[0])}')
+            barras1 = axes_gs_0.barh(media_1['Clusters (AutoClusterHPO)'], media_1[str(df_cluster.columns[0])])
+            axes_gs_0.bar_label(barras1, fmt='%d', padding=-45)
+            axes_gs_0.set_xticklabels([])
+            axes_gs_0.set_xlabel(f'Média de {str(df_cluster.columns[0])}')
+
+            # Plotar Gráfico de Barra 2
+            axes_gs_1 = fig.add_subplot(gs[1])
+            axes_gs_1.set_title(f'Clusters X {str(df_cluster.columns[1])}')
+            barras2 = axes_gs_1.barh(media_2['Clusters (AutoClusterHPO)'], media_2[str(df_cluster.columns[1])])
+            axes_gs_1.bar_label(barras2, fmt='%d', padding=5)
+            axes_gs_1.set_xticklabels([])
+            axes_gs_1.set_xlabel(f'Média de {str(df_cluster.columns[1])}')
+                
+            # Plotar Gráfico de Barra 3
+            axes_gs1_0 = fig.add_subplot(gs1[0])
+            axes_gs1_0.set_title(f'Clusters X {str(df_cluster.columns[2])}')
+            barras3 = axes_gs1_0.barh(media_3['Clusters (AutoClusterHPO)'], media_3[str(df_cluster.columns[2])])
+            axes_gs1_0.bar_label(barras3, fmt='%d', padding=-30)
+            axes_gs1_0.set_xticklabels([])
+            axes_gs1_0.set_xlabel(f'Média de {str(df_cluster.columns[2])}')
+
+            return media_1, media_2, media_3
+    
+        # Copiar df original
+        df_original_copy = df_original.copy()
+            
+        gs_principal = gridspec.GridSpec(1, 3, figure=fig, width_ratios=[2, 1, 1], wspace=0.2)
+        gs = gs_principal[1].subgridspec(2, 1, hspace=0.4)
+        gs1 = gs_principal[2].subgridspec(2, 1, hspace=0.4)
+            
+        df_original_copy = plotarDispersao(fig)
+        media_1, media_2, media_3 = plotarBarras(fig)
+
+        dataframes = {'df_original_copy' : df_original_copy, 
+                    'df_media_1' : media_1,
+                    'df_media_2' : media_2,
+                    'df_media_3' : media_3}
+
+        return dataframes
+
+    df_profiles_posts_int = tratarDados()
+    
+    # Separar Bases 
+    df_original = df_profiles_posts_int
+    df_cluster = df_profiles_posts_int[['followersCount', 'followsCount', 'postsCount']].copy()
+
+    # Inicializar e aplicar o AutoCluster
+    autocluster_tool = AutoClusterHPO(max_evals_per_algo=100) 
+    df_original['Clusters (AutoClusterHPO)'], model, config, score, algo_name = autocluster_tool.fit_predict(df_cluster)
+
+    fig = plt.figure(figsize=(20, 7))
+    
+    dataframes = plotarFiguraNColsPCA(df_original, df_cluster, fig)
+
+    # --- 6. Finalização e Exibição/Salvamento da Figura ---
+    plt.tight_layout(rect=[0, 0, 1, 0.96]) # Ajusta o layout para evitar sobreposição
+
+    buffer = io.BytesIO() 
+        
+    # Para salvar a figura em um arquivo
+    plt.savefig(buffer, format='png', dpi=300)
+        
+    plt.close()
+
+    buffer.seek(0)
+
+    return buffer, dataframes
+
 # --- Função Principal de Geração de Relatório ---
 def generate_full_report(client_name, profile_df, posts_df, content_analysis, output_path, template_path):
+    
     """Gera o relatório completo em .docx."""
+    
+    def analisarFigura1():
+        
+        document.add_paragraph(f"A figura abaixo nos dá uma visão geral sobre quem são os melhores concorrentes do negócio, "
+                            "segundo os indicadores de interesse, tanto a nível de perfil quanto a nível de publicações.")
+    
+        # Adiciona Figura 1
+        paragrafo_da_imagem = document.add_paragraph()
+        paragrafo_da_imagem.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        run_da_imagem = paragrafo_da_imagem.add_run() 
+        chart_buffer, dict_df = plotarFigura1(client_name, profile_df, posts_df)
+        run_da_imagem.add_picture(chart_buffer, width=Inches(6))
+
+        # Gerar Análise dos Dados da Figura 1
+        llm = ChatOllama(model="llama3.2:latest", temperature=0) 
+        textos_analises = []
+        for nome_df, df in dict_df.items():
+
+            if not df.empty:
+                df_ord = df.sort_values(by=str(df.columns[-1]), ascending=False)
+            else:
+                df_ord = df
+            print(df_ord, end='\n')
+        
+            if nome_df == 'followers':
+                inicio = "De acordo com o primeiro gráfico da figura acima..."
+            elif nome_df == 'follows':
+                inicio = "Já de acordo com o segundo gráfico da figura..."
+            elif nome_df == 'posts_count':
+                inicio = "Quanto ao último gráfico da figura acima..."
+            
+            prompt = f"""
+            Persona: Você é um analista\estrategista de marketing de mídias sociais sênior, especialista em social metrics. 
+            Contexto: Produza uma análise detalhada com a sua interpretação dos dados do gráfico de barras dos perfis concorrentes do cliente "{client_name}". 
+            Tarefa: Gere um texto científico detalhado de 1 parágrafo com sua análise. 
+            Formato: Responda apenas o parágrafo da análise.
+            Requisito: Inicie o texto dizendo {inicio}.
+            Dados: {df_ord}
+            """
+        
+            analise = llm.invoke(prompt)
+            textos_analises.append(analise.content)
+        
+        
+        analise_figura_1 = ' '.join(textos_analises)
+        document.add_paragraph('\n\n'.join(textos_analises))
+
+        prompt = f"""
+            Persona: Você é um estrategista de marketing de mídias sociais sênior, especialista em social metrics. 
+            Contexto: Com base nesta analise abaixo, quais recomendações você sugere para a estratégia do cliente "{client_name}" no instagram? Justifique de forma clara cada uma delas
+            Tarefa: Gere um texto detalhado de 1 parágrafo com suas recomendações. 
+            Formato: Responda apenas o parágrafo das recomendações.
+            Requisito: Inicie o texto dizendo "Com base nas análises acima..."
+            Analises: {analise_figura_1}
+        """
+        
+        print()
+        recomendacoes = llm.invoke(prompt)
+        print(f'Recomendações: {recomendacoes.content}')
+        document.add_paragraph(recomendacoes.content)
+        
+    def analisarFigura2():
+        
+        document.add_paragraph()
+        document.add_paragraph(f"    Na análise que se segue, será possível perceber uma visão geral sobre os concorrentes "
+                            "por meio dos resultados de uma análise de clusterização. Esta análise é um tipo de análise estatística que "
+                            "tem o objetivo de encontrar padrões ocultos em conjuntos de dados. Com ela, será possível perceber "
+                            "quais concorrentes tem comportamentos parecidos no que diz respeito a Seguidores, Seguindo e Quantidade de Posts, sendo possível assim "
+                            " a segmentação dos concorrentes em poucos grupos com alto grau de similaridade entre si.")
+    
+        document.add_paragraph()
+        
+        # Adiciona Figura 1
+        paragrafo_da_imagem = document.add_paragraph()
+        paragrafo_da_imagem.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        run_da_imagem = paragrafo_da_imagem.add_run() 
+        chart_buffer, dict_df = plotarFigura2(profile_df, posts_df)
+        run_da_imagem.add_picture(chart_buffer, width=Inches(6))
+
+        # Gerar Análise dos Dados da Figura 1
+        llm = ChatOllama(model="llama3.2:latest", temperature=0) 
+        textos_analises = []
+        for nome_df, df in dict_df.items():
+
+            """ 
+            
+            if not df.empty:
+                df_ord = df.sort_values(by=str(df.columns[-1]), ascending=False)
+            else:
+                df_ord = df
+            print(df_ord, end='\n')
+
+            """
+        
+            if nome_df == 'df_original_copy':
+                inicio = "De acordo com o primeiro gráfico da figura acima..."
+            elif nome_df == 'df_media_1':
+                inicio = "Já de acordo com o segundo gráfico da figura..."
+            elif nome_df == 'df_media_2':
+                inicio = "Quanto ao último gráfico da figura acima..."
+            elif nome_df == 'df_media_3':
+                inicio = "Já no último gráfico da figura acima..."
+            
+            prompt = f"""
+            Persona: Você é um analista\estrategista de marketing de mídias sociais sênior, especialista em social metrics. 
+            Contexto: Produza uma análise detalhada com a sua interpretação dos dados do gráfico de barras dos perfis concorrentes do cliente "{client_name}". 
+            Tarefa: Gere um texto científico detalhado de 1 parágrafo com sua análise. 
+            Formato: Responda apenas o parágrafo da análise.
+            Requisito: Inicie o texto dizendo {inicio}.
+            Dados: {df}
+            """
+        
+            analise = llm.invoke(prompt)
+            textos_analises.append(analise.content)
+        
+        analise_figura_1 = ' '.join(textos_analises)
+        document.add_paragraph('\n\n'.join(textos_analises))
+
+        prompt = f"""
+            Persona: Você é um estrategista de marketing de mídias sociais sênior, especialista em social metrics. 
+            Contexto: Com base nesta analise abaixo, quais recomendações você sugere para a estratégia do cliente "{client_name}" no instagram? Justifique de forma clara cada uma delas
+            Tarefa: Gere um texto detalhado de 1 parágrafo com suas recomendações. 
+            Formato: Responda apenas o parágrafo das recomendações.
+            Requisito: Inicie o texto dizendo "Com base nas análises acima..."
+            Analises: {analise_figura_1}
+        """
+        
+        print()
+        recomendacoes = llm.invoke(prompt)
+        print(f'Recomendações: {recomendacoes.content}')
+        document.add_paragraph(recomendacoes.content)
+    
     document = Document(template_path) 
 
     # Titulo
@@ -244,11 +402,6 @@ def generate_full_report(client_name, profile_df, posts_df, content_analysis, ou
     document.add_heading("1.0 Introdução", level=1)
     document.add_heading("2.0 Análise dos Concorrentes", level=1)
     
-    # Seção 2.1: Perfil dos Concorrentes
-    #texto_secao_2_1 = (f"Para que se possa cumprir com o objetivo de analisar o perfil dos concorrentes da empresa {client_name}, "
-    #                    "A figura abaixo nos dá uma visão geral sobre quem são os melhores concorrentes do negócio, "
-    #                    "segundo os indicadores de interesse, tanto a nível de perfil quanto a nível de publicações.")
-    
     texto_secao_2_1 = (f"Nesta seção será realizada uma análise comparativa entre os concorrentes do Jeronim Rodrigues Ba, "
                    "a fim de traçar os seus perfis. Além de serem analisadas métricas de performance, frequência e recência, "
                    "também serão analisados, qualitativamente, seus respectivos conteúdos, bem como o tom de voz, tópicos frequentes "
@@ -258,52 +411,12 @@ def generate_full_report(client_name, profile_df, posts_df, content_analysis, ou
     
     document.add_heading("2.1 Análise de Perfil dos Concorrentes", level=2)
     document.add_paragraph(texto_secao_2_1)
-    
-    document.add_paragraph()
 
-    document.add_paragraph(f"A figura abaixo nos dá uma visão geral sobre quem são os melhores concorrentes do negócio, "
-                           "segundo os indicadores de interesse, tanto a nível de perfil quanto a nível de publicações.")
-  
-    # Adiciona Figura 1
-    paragrafo_da_imagem = document.add_paragraph()
-    paragrafo_da_imagem.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run_da_imagem = paragrafo_da_imagem.add_run() 
-    chart_buffer, dict_df = plotarFigura1(client_name, profile_df, client_name)
-    run_da_imagem.add_picture(chart_buffer, width=Inches(6))
-
-    # Gerar Análise dos Dados da Figura 1
-    llm = ChatOllama(model="llama3.2:latest", temperature=0) 
-    textos_analises = []
-    for nome_df, df in dict_df.items():
-
-        if not df.empty:
-            df_ord = df.sort_values(by=str(df.columns[-1]), ascending=False)
-        else:
-            df_ord = df
-        print(df_ord, end='\n')
+    analisarFigura1()
+    analisarFigura2()
     
-        if nome_df == 'followers':
-            inicio = "De acordo com o primeiro gráfico da figura acima..."
-        elif nome_df == 'perc_engaj':
-            inicio = "Já de acordo com o segundo gráfico da figura..."
-        elif nome_df == 'engaj':
-            inicio = "Quanto ao último gráfico da figura acima..."
-        
-        prompt = f"""
-        Persona: Você é um analista\estrategista de marketing de mídias sociais sênior, especialista em social metrics. 
-        Contexto: Produza uma análise detalhada com a sua interpretação dos dados do gráfico de barras dos perfis concorrentes do cliente "{client_name}". 
-        Tarefa: Gere um texto científico detalhado de 1 parágrafo com sua análise. 
-        Formato: Responda apenas o parágrafo da análise.
-        Requisito: Inicie o texto dizendo {inicio}.
-        Dados: {df_ord}
-        """
-    
-        analise = llm.invoke(prompt)
-        textos_analises.append(analise.content)
-    
-    
-    analise_figura_1 = '\n\n'.join(textos_analises)
-    document.add_paragraph(analise_figura_1)
+    # Salva o documento
+    document.save(output_path) 
 
     """ 
     # Adiciona gráfico de engajamento
@@ -345,5 +458,3 @@ def generate_full_report(client_name, profile_df, posts_df, content_analysis, ou
     
     """
     
-    # Salva o documento
-    document.save(output_path) 
