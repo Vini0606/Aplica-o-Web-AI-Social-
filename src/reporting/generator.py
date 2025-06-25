@@ -300,7 +300,7 @@ def plotarFigura3(profile_df, posts_df):
     # Para salvar a figura em um arquivo
     plt.savefig(buffer, format='png', dpi=300)
         
-    plt.show()
+    plt.close()
 
     buffer.seek(0)
 
@@ -366,46 +366,7 @@ def gerarCapaResumo(document, titulo, cliente, autor, data, resumo_profissional)
 def generate_full_report(client_name, profile_df, posts_df, content_analysis, output_path, template_path):
     
     """Gera o relatório completo em .docx."""
-    
-    def criarSecaoCapaResumo():
 
-        # Título do Relatório
-        titulo_principal = document.add_heading(titulo, level=1)
-        titulo_principal.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        for run in titulo_principal.runs:
-            run.font.size = Pt(24)
-            run.bold = True
-
-            # Adiciona espaçamento após o título
-            document.add_paragraph()
-            document.add_paragraph()
-
-            # Informações do Autor e Instituição
-            p_autor = document.add_paragraph()
-            p_autor.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            p_autor.add_run(f'Preparado por:\n{autor}\n\n').bold = True
-            p_autor.add_run(f'Instituição:\n{instituicao}\n\n')
-
-            # Data
-            p_data = document.add_paragraph()
-            p_data.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            p_data.add_run(data)
-
-            # Adiciona quebra de página para separar a capa do conteúdo
-            document.add_page_break()
-
-            # --- Seção do Resumo Profissional ---
-
-            # Título do Resumo
-            titulo_resumo = document.add_heading('Resumo Profissional', level=2)
-            for run in titulo_resumo.runs:
-                run.font.size = Pt(16)
-                run.bold = True
-
-            # Corpo do Resumo
-            p_resumo = document.add_paragraph(resumo_profissional)
-            p_resumo.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-    
     def analisarFigura1():
         
         document.add_paragraph(f"A figura abaixo nos dá uma visão geral sobre quem são os melhores concorrentes do negócio, "
@@ -607,18 +568,8 @@ def generate_full_report(client_name, profile_df, posts_df, content_analysis, ou
     
     gerarCapaResumo(document, titulo_analise, nome_cliente, nome_autor, data_analise, texto_resumo) 
 
-    """ 
-    
-    # Titulo
-    paragrafo_titulo = document.add_heading(f"Análise de Concorrentes no Instagram do negócio {client_name}", level=0)
-    paragrafo_titulo.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    # Estrutura Inicial
     document.add_page_break()
-    
-    # Estrutura Inicial
-    document.add_heading("Resumo", level=1)
-    
-    """
-    # Estrutura Inicial
     document.add_heading("1.0 Introdução", level=1)
     document.add_heading("2.0 Análise dos Concorrentes", level=1)
     
