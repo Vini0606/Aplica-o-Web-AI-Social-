@@ -1,47 +1,98 @@
-# Gerador de Relatório de Análise de Concorrentes do Instagram com IA
+# AI Social - Automação de Estratégia e Análise de Instagram com IA
 
-Este projeto é uma ferramenta de automação que gera um relatório de análise de concorrentes para o Instagram. Utilizando a plataforma Apify para extração de dados, LangChain e modelos de linguagem (LLMs) para análise, e python-docx para a criação de relatórios, esta aplicação transforma um simples briefing em um documento .docx profissional e personalizado. 
+Este projeto é um sistema avançado projetado para automatizar a análise de perfis do Instagram e a geração de relatórios estratégicos de marketing de conteúdo. Utilizando Modelos de Linguagem Grandes (LLMs) e extração de dados, a ferramenta é capaz de realizar um briefing com o usuário, analisar concorrentes e gerar um plano de marketing completo, um relatório de análise de concorrência e um calendário de publicações.
 
-## Funcionalidades
+## ✨ Funcionalidades
 
-- **Análise de Briefing em Linguagem Natural**: Extrai o nome do cliente e a lista de concorrentes de um texto simples. 
-- **Extração de Dados Abrangente**: Coleta dados de perfil (seguidores, posts, etc.) e dados de posts individuais (curtidas, comentários, legendas) usando a Apify. 
-- **Análise Quantitativa (KPIs)**: Calcula automaticamente os principais indicadores de desempenho, como taxa de engajamento média. 
-- **Análise Qualitativa com IA**: Utiliza um LLM para identificar os pilares de conteúdo e o tom de voz dos concorrentes. 
-- **Geração de Relatório Profissional**: Cria um documento .docx com design personalizado, incluindo texto, tabelas formatadas e visualizações de dados. 
+- **Briefing Interativo com IA:** Um chatbot conduz uma entrevista de briefing completa para coletar informações essenciais sobre o cliente e seus objetivos.
+- **Análise de Briefing com LLM:** Interpreta as respostas do briefing para extrair e estruturar automaticamente os objetivos (principais e secundários), o público-alvo e os pilares de conteúdo iniciais.
+- **Ingestão de Dados do Instagram:** Utiliza a API da Apify para extrair dados públicos de perfis e publicações de concorrentes.
+- **Análise Aprofundada de Concorrentes:**
+    - Processa e enriquece os dados brutos, calculando métricas de engajamento, frequência e recência.
+    - Gera visualizações de dados (gráficos e nuvens de palavras) para comparar o desempenho dos concorrentes.
+    - Utiliza um LLM para analisar os gráficos e textos, gerando insights e recomendações estratégicas.
+- **Geração Automática de Relatórios:** Cria documentos profissionais e detalhados em formatos `.docx` e `.xlsx`:
+    1.  **Plano de Marketing de Conteúdo (`Estrategia.docx`):** Um documento completo com objetivos, persona, pilares de conteúdo, formatos recomendados e KPIs.
+    2.  **Análise de Concorrentes (`Concorrentes.docx`):** Um relatório detalhado com análises de perfil, engajamento, formatos e frequência, incluindo gráficos e textos analíticos gerados por IA.
+    3.  **Calendário de Publicações (`publicações.xlsx`):** Uma planilha com ideias de conteúdo para Reels, Carrosséis, Imagens e Stories, alinhadas aos pilares de conteúdo definidos.
 
-## Configuração e Instalação
+## 🚀 Tecnologias e Bibliotecas
 
-Siga estes passos para configurar e executar o projeto em sua máquina local. 
+- **Linguagem:** Python 3
+- **IA e LLMs:**
+    - `langchain`: Para orquestrar as interações com os modelos de linguagem.
+    - `langchain_groq`: Para acesso a LLMs de alta velocidade (Gemma, Llama).
+    - `pydantic`: Para estruturar e validar as saídas dos LLMs.
+- **Análise e Manipulação de Dados:**
+    - `pandas`: Para manipulação e análise dos dados extraídos.
+    - `scikit-learn`: Para análises estatísticas como PCA.
+- **Visualização de Dados:**
+    - `matplotlib` & `seaborn`: Para a criação de gráficos estáticos.
+    - `wordcloud`: Para gerar nuvens de hashtags.
+- **Extração de Dados:**
+    - `apify_client`: Para interagir com a plataforma Apify e extrair dados do Instagram.
+- **Geração de Relatórios:**
+    - `python-docx`: Para criar e manipular documentos Word (`.docx`).
+    - `openpyxl`: Para criar planilhas Excel (`.xlsx`).
+- **Ambiente:**
+    - `dotenv`: Para gerenciar variáveis de ambiente (chaves de API).
 
-### 1. Clone o Repositório
+## ⚙️ Instalação e Configuração
 
-```bash
+1.  **Clone o repositório:**
+    ```bash
+    git clone <url-do-repositorio>
+    cd <nome-do-repositorio>
+    ```
 
-git clone [https://github.com/seu-usuario/seu-repositorio.git](https://github.com/seu-usuario/seu-repositorio.git)
-cd seu-repositorio
+2.  **Crie e ative um ambiente virtual:**
+    ```bash
+    python -m venv venv
+    # Windows
+    .\venv\Scripts\activate
+    # macOS/Linux
+    source venv/bin/activate
+    ```
 
-```
+3.  **Instale as dependências:**
+    ```bash
+    pip install -r requirements.txt
+    ```
 
-### 2. Rodar o Projeto
+4.  **Configure as variáveis de ambiente:**
+    - Crie um arquivo chamado `.env` na raiz do projeto.
+    - Adicione suas chaves de API. Você precisará de chaves para a Apify e para o Groq.
+    ```env
+    APIFY_API_TOKEN="sua_chave_apify"
+    GROQ_API_KEY="sua_chave_groq"
+    ```
 
-```bash
+## ▶️ Como Usar
 
-python -m venv venv
+O processo é executado em etapas, orquestradas pelo `main.py`.
 
-# Ativar AV No Windows:
-venv\Scripts\activate
+1.  **Etapa 1: Briefing (Opcional)**
+    - Para realizar um novo briefing, execute o script interativo:
+      ```bash
+      python src/reporting/generator_report_briefing.py
+      ```
+    - Ao final, o script gera um resumo em formato Markdown. Copie esse resumo e salve-o no arquivo `reports/briefing.md`.
+    - Alternativamente, preencha o arquivo `reports/briefing.md` manualmente com as informações do cliente.
 
-# Intalar Dependências:
-pip install -r requirements.txt
+2.  **Etapa 2: Coleta de Dados**
+    - O sistema é projetado para ler os dados de arquivos JSON localizados em `data/raw/`. Certifique-se de que os arquivos `profile_data.json` e `post_data.json` estejam presentes.
+    - A função `extrairDadosApifyInstagram` em `main.py` pode ser utilizada para buscar e salvar esses dados automaticamente, desde que os nomes de usuário dos concorrentes estejam definidos.
 
-# Preencher arquivo .env com API Keys na Raiz do Projeto:
-APIFY_API_TOKEN="seu_token_da_apify"
-OPENAI_API_KEY="seu_token_da_openai"
+3.  **Etapa 3: Execução Principal**
+    - Com o `briefing.md` e os arquivos de dados prontos, execute o script principal:
+      ```bash
+      python main.py
+      ```
+    - O script irá:
+        - Criar as pastas de `data` e `reports` se não existirem.
+        - Ler e analisar o `briefing.md` usando o LLM.
+        - Carregar e processar os dados dos concorrentes.
+        - Gerar os três relatórios: `Estrategia.docx`, `Concorrentes.docx` e `publicações.xlsx`.
 
-# Rodar Sistema
-python main.py
-
-```
-
-Seguindo todos esses passos, você terá uma implementação funcional e completa do sistema descrito no seu documento.
+4.  **Etapa 4: Verifique os Resultados**
+    - Os relatórios gerados estarão disponíveis na pasta `reports/`.

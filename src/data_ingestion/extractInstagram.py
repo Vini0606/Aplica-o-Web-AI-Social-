@@ -3,7 +3,7 @@
 import os
 import json
 from apify_client import ApifyClient
-from apify_client.errors import ApifyApiError
+from apify_client._errors import ApifyClientError 
 
 def get_apify_client() -> ApifyClient:
     """Inicializa e retorna uma instância do cliente da Apify.""" 
@@ -56,7 +56,8 @@ def get_data_from_run(client: ApifyClient, run: dict, output_path: str) -> list:
         with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(dataset_items, f, ensure_ascii=False, indent=4) 
         print(f"Dados salvos em: {output_path}") 
+        
         return dataset_items 
-    except ApifyApiError as e:
+    except ApifyClientError as e:
         print(f"Erro ao buscar itens do dataset {dataset_id}: {e.message}") 
         return 
