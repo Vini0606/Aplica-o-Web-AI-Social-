@@ -21,7 +21,7 @@ def scrape_profile_data(client: ApifyClient, usernames: list[str]) -> dict:
         run = actor.call(run_input=run_input) 
         print("Extração de dados de perfil concluida.") 
         return run 
-    except ApifyApiError as e:
+    except ApifyClientError as e:
         print(f"Ocorreu um erro na API da Apify ao buscar perfis: {e.message}") 
         return None 
 
@@ -30,11 +30,11 @@ def scrape_post_data(client: ApifyClient, usernames: list[str], max_posts: int) 
     print(f"Iniciando a extração de até {max_posts} posts para: {usernames} ") 
     try:
         actor = client.actor("apify/instagram-post-scraper") 
-        run_input = {"usernames": usernames, "resultsLimit": max_posts} 
+        run_input = {"username": usernames, "resultsLimit": max_posts} 
         run = actor.call(run_input=run_input) 
         print("Extração de posts concluída.") 
         return run 
-    except ApifyApiError as e:
+    except ApifyClientError as e:
         print(f"Ocorreu um erro na API da Apify ao buscar posts: {e.message}") 
         return None 
 

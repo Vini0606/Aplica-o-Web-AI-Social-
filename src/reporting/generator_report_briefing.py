@@ -13,7 +13,7 @@ from langchain_core.exceptions import OutputParserException
 # Carrega as variáveis de ambiente (sua chave da API)
 load_dotenv()
 
-def preencher_briefing():
+def preencher_briefing(output_path):
 
     # --- 1. MODELO DE LINGUAGEM ---
     # Inicializa o modelo de linguagem que será o cérebro do nosso chatbot.
@@ -142,7 +142,10 @@ def preencher_briefing():
         formatter_chain = PROMPT_FORMATTER | llm
         
         markdown_output = formatter_chain.invoke({"chat_history": history}).content
-            
+
+        with open(output_path, 'w', encoding='utf-8') as f:
+            f.write(markdown_output)    
+        
         print(f"✅ Arquivo Markdown gerado com sucesso!")
 
         return markdown_output

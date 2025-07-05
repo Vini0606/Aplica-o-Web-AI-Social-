@@ -1,13 +1,21 @@
 # src/analysis/engine.py
 
 import pandas as pd
+import json
 from typing import List
 from pydantic import BaseModel, Field
 from langchain_openai import ChatOpenAI
 from langchain_groq import ChatGroq
 from langchain_ollama import ChatOllama
+from langchain_core.language_models.chat_models import BaseChatModel
 
 # Pydantic Schemas
+class InfoEmpresa(BaseModel):
+    nome_empresa: str = Field(description="O nome da empresa do cliente no instagram.")
+    keywords: List[str] = Field(description="Palavras-chave relacionadas a empresa e aos produtos da empresa.")
+    localizacao: str = Field(description="Endereço completo da empresa.")
+    bairros: List[str] = Field(description="Bairros muito próximos, ou pertencentes, da localização da empresa")
+
 class Objetivos(BaseModel):
     client_name: str = Field(description="O nome de usuário da empresa cliente no instagram. [tarcisiogdf]")
     objetivo_principal: str = Field(description="O objetivo principal do cliente no modelo SMART (Específicos, Mensuráveis, Atingíveis, Relevantes e com Prazo definido). [Ex: Aumentar as vendas online em 15% através do Instagram nos próximos 6 meses.]")
@@ -40,10 +48,7 @@ class ContentStrategyAnalysis(BaseModel):
     
 
 # Funções de Análise de Conteúdo
-def parse_objetivos(briefing_text: str) -> Objetivos:
-    #llm = ChatOpenAI(model="gpt-4.0-turbo", temperature=0) # ou outro modelo como gpt-4o
-    #llm = ChatGroq(model="llama-3.1-8b-instant", temperature=0)
-    llm = ChatGroq(model="gemma2-9b-it", temperature=0.4)
+def parse_objetivos(briefing_text: str, llm: BaseChatModel) -> Objetivos:
 
     structured_llm = llm.with_structured_output(Objetivos)
     prompt = f"""
@@ -67,10 +72,22 @@ def parse_objetivos(briefing_text: str) -> Objetivos:
         print(f"Falha ao analisar o briefing: {e}") 
         return None 
 
-def parse_publicos(briefing_text: str) -> Publico:
-    #llm = ChatOpenAI(model="gpt-4.0-turbo", temperature=0) # ou outro modelo como gpt-4o
-    #llm = ChatGroq(model="llama-3.1-8b-instant", temperature=0)
-    llm = ChatGroq(model="gemma2-9b-it", temperature=0.4)
+def parse_info_empresa(briefing_text: str, llm: BaseChatModel) -> InfoEmpresa:
+
+    structured_llm = llm.with_structured_output(InfoEmpresa)
+    prompt = f"""
+              ## Contexto 
+              Analise o briefing abaixo e extraia as informações básicas da empresa cliente. 
+              
+              ## Briefing:
+              \n\"{briefing_text}\ """ 
+    try:
+        return structured_llm.invoke(prompt) 
+    except Exception as e:
+        print(f"Falha ao analisar o briefing: {e}") 
+        return None 
+
+def parse_publicos(briefing_text: str, llm: BaseChatModel) -> Publico:
 
     structured_llm = llm.with_structured_output(Publico)
     prompt = f"Analise o briefing a seguir e extraia as informações necessárias sobre o principal público-alvo da empresa cliente. Briefing:\n\"{briefing_text}\"" 
@@ -80,10 +97,7 @@ def parse_publicos(briefing_text: str) -> Publico:
         print(f"Falha ao analisar o briefing: {e}") 
         return None 
 
-def parse_pilares(briefing_text: str) -> VetorDePilares:
-    #llm = ChatOpenAI(model="gpt-4.0-turbo", temperature=0) # ou outro modelo como gpt-4o
-    #llm = ChatGroq(model="llama-3.1-8b-instant", temperature=0)
-    llm = ChatGroq(model="gemma2-9b-it", temperature=0.6)
+def parse_pilares(briefing_text: str, llm: BaseChatModel) -> VetorDePilares:
 
     structured_llm = llm.with_structured_output(VetorDePilares)
     prompt = f"""Analise o briefing a seguir e gere tópicos de conteúdo que a empresa cliente precisa falar no instagram para alcançar seus objetivos. 
@@ -97,10 +111,7 @@ def parse_pilares(briefing_text: str) -> VetorDePilares:
         print(f"Falha ao analisar o briefing: {e}") 
         return None 
 
-def parse_analyses(analyses: dict, objetivos: dict) -> VetorDePilares:
-    #llm = ChatOpenAI(model="gpt-4.0-turbo", temperature=0) # ou outro modelo como gpt-4o
-    #llm = ChatGroq(model="llama-3.1-8b-instant", temperature=0)
-    llm = ChatGroq(model="gemma2-9b-it", temperature=0.6)
+def parse_analyses(analyses: dict, objetivos: dict, llm: BaseChatModel) -> VetorDePilares:
 
     structured_llm = llm.with_structured_output(VetorDePilares)
     prompt = f"""
@@ -118,7 +129,7 @@ def parse_analyses(analyses: dict, objetivos: dict) -> VetorDePilares:
         return None 
 
 
-# Funções de Carregamento e Tratamento de
+# Funções Tratamento e Análise de Dados
 def load_profiles_to_df(path: str) -> pd.DataFrame:
     return pd.read_json(path) 
 
@@ -127,6 +138,33 @@ def load_posts_to_df(path: str) -> pd.DataFrame:
     df['timestamp'] = pd.to_datetime(df['timestamp'])
     df['TOTAL ENGAJAMENTO'] = df['likesCount'] + df['commentsCount']
     return df 
+
+def load_search_to_df(path: str) -> pd.DataFrame:
+    try:
+        # Lê todo o conteúdo do arquivo
+        with open(path, 'r', encoding='utf-8') as f:
+            file_content = f.read()
+
+        # Tenta analisar todo o conteúdo como um único objeto JSON
+        data = json.loads(file_content)
+
+        # Converte para DataFrame usando json_normalize
+        # Removendo o argumento 'meta' para incluir apenas os dados de 'organic'
+        search_df = pd.json_normalize(
+            data,
+            record_path=['organic']
+            # meta=[] # Não é necessário, pois estamos removendo o 'meta'
+            # errors='ignore' # Não é mais necessário, pois não há chaves 'meta' para ignorar
+        )
+
+        return search_df
+
+    except json.JSONDecodeError as e:
+        print(f"Falha ao decodificar JSON do '{path}': {e}")
+        print("Isso indica que o arquivo contém sintaxe JSON inválida ou não é um único objeto JSON válido.")
+        print("Por favor, inspecione o conteúdo do arquivo diretamente em busca de erros.")
+    except Exception as e:
+        print(f"Ocorreu um erro inesperado: {e}")
 
 def load_join_profiles_posts(original_posts_df: pd.DataFrame, original_profile_df: pd.DataFrame) -> pd.DataFrame:
         
@@ -303,7 +341,7 @@ def calculate_kpis(profile_df: pd.DataFrame, posts_df: pd.DataFrame) -> pd.DataF
     kpi_df = kpi_df.round(2) 
     return kpi_df 
 
-def analyze_content_strategy_for_user(posts_df: pd.DataFrame, username: str) -> ContentStrategyAnalysis:
+def analyze_content_strategy_for_user(posts_df: pd.DataFrame, username: str, llm: BaseChatModel) -> ContentStrategyAnalysis:
 
     user_posts = posts_df[posts_df['ownerUsername'] == username] 
     top_captions = user_posts.nlargest(10, 'likesCount')['caption'].dropna().tolist() 
@@ -312,10 +350,6 @@ def analyze_content_strategy_for_user(posts_df: pd.DataFrame, username: str) -> 
         return ContentStrategyAnalysis(content_pillars=[], tone_of_voice="N/A", summary="Dados insuficientes para análise.") 
 
     captions_text = "\n".join(f"- {c}" for c in top_captions) 
-    
-    #llm = ChatOpenAI(model="gpt-4.0-turbo", temperature=0) # ou outro modelo como gpt-4o
-    #llm = ChatGroq(model="llama-3.1-8b-instant", temperature=0)
-    llm = ChatGroq(model="gemma2-9b-it", temperature=0.6)
     structured_llm = llm.with_structured_output(ContentStrategyAnalysis) 
 
     prompt = f"""

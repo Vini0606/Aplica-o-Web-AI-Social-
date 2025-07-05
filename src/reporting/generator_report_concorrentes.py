@@ -217,13 +217,12 @@ def Secao_2_1_Figura3(posts_df):
 
     def plotarNuvemPalavras():
 
-        posts_df = pd.read_json("data/raw/post_data.json")
-
         lista_unica = []
 
         for sublista in posts_df['hashtags']:
-            for item in sublista:
-                lista_unica.append(item)
+            if isinstance(sublista, list):
+                for item in sublista:
+                    lista_unica.append(item)
 
         # Seu texto aqui
         texto = " ".join(lista_unica)
@@ -253,6 +252,57 @@ def Secao_2_1_Figura3(posts_df):
     buffer.seek(0)
 
     return buffer, df 
+
+def Secao_2_1_Figura3_(posts_df):
+
+    def plotarNuvemPalavras():
+
+        # No need to read the JSON again if posts_df is passed as an argument
+        # posts_df = pd.read_json("data/raw/post_data.json") 
+
+        lista_unica = []
+
+        # The fix is here:
+        for sublista in posts_df['hashtags'].dropna(): # Drop rows with NaN in hashtags
+            if isinstance(sublista, list): # Check if the entry is a list
+                for item in sublista:
+                    lista_unica.append(item)
+
+        # Your text here
+        texto = " ".join(lista_unica)
+
+        # Return None if there is no text to prevent further errors
+        if not texto:
+            return None, pd.DataFrame()
+
+        # Create the WordCloud object
+        nuvem_palavras = WordCloud(width=800, height=400, background_color="white").generate(texto)
+        
+        return nuvem_palavras, pd.DataFrame(lista_unica, columns=['hashtag'])['hashtag'].value_counts().reset_index()
+
+    # --- Main function logic ---
+    nuvem_palavras, df = plotarNuvemPalavras()
+
+    # Handle the case where no word cloud could be generated
+    if nuvem_palavras is None:
+        print("Aviso: Nenhuma hashtag encontrada para gerar a nuvem de palavras.")
+        # Return an empty buffer and dataframe
+        return io.BytesIO(), pd.DataFrame()
+
+    # Display the generated image
+    plt.figure(figsize=(16, 8))
+    plt.imshow(nuvem_palavras, interpolation='bilinear')
+    plt.axis("off") # Remove axes
+
+    # --- Finalization and Saving ---
+    plt.tight_layout(rect=[0, 0, 1, 0.96]) 
+
+    buffer = io.BytesIO() 
+    plt.savefig(buffer, format='png', dpi=300)
+    plt.close()
+    buffer.seek(0)
+
+    return buffer, df
 
 def Secao_2_2_Figura4(client_name, posts_df, df_profiles_posts):
  
@@ -801,7 +851,7 @@ def analisarFigura3(llm, client_name, document, dataframes):
     paragrafo_da_imagem = document.add_paragraph()
     paragrafo_da_imagem.alignment = WD_ALIGN_PARAGRAPH.CENTER
     run_da_imagem = paragrafo_da_imagem.add_run() 
-    chart_buffer, df = Secao_2_1_Figura3(dataframes['posts_df'])
+    chart_buffer, df = Secao_2_1_Figura3_(dataframes['posts_df'])
     run_da_imagem.add_picture(chart_buffer, width=Inches(6))
 
     # Gerar Análise dos Dados da Figura 1 

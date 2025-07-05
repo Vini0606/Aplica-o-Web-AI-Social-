@@ -10,7 +10,7 @@ import pandas as pd
 from typing import List, Optional
 from langchain_core.exceptions import OutputParserException
 
-def preencher_publicacoes(pilares):
+def preencher_publicacoes(llm, pilares):
 
     # 1. Definição da estrutura de saída com Pydantic
     class Reel(BaseModel):
@@ -73,7 +73,6 @@ def preencher_publicacoes(pilares):
     documento_completo = "\n".join([doc.page_content for doc in docs])
 
     # 3. Inicialização do modelo e do parser
-    model = ChatGroq(model="llama3-70b-8192", temperature=0.4)
     parser = PydanticOutputParser(pydantic_object=PlanoDeConteudo)
 
     todos_os_reels = []
@@ -84,7 +83,7 @@ def preencher_publicacoes(pilares):
     historico_de_conteudo = {pilar['nome']: [] for pilar in pilares}
 
     
-    for _ in range(12):
+    for _ in range(8):
         
         # Loop principal para iterar sobre cada pilar
         for pilar in pilares:
@@ -126,7 +125,7 @@ def preencher_publicacoes(pilares):
             )
 
             # 5. Criação e execução da cadeia
-            chain = prompt | model | parser
+            chain = prompt | llm | parser
             chain_with_retries = chain.with_retry(
                 retry_if_exception_type=(OutputParserException, ValueError),
                 stop_after_attempt=3
