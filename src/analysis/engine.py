@@ -9,7 +9,10 @@ from langchain_groq import ChatGroq
 from langchain_ollama import ChatOllama
 from langchain_core.language_models.chat_models import BaseChatModel
 
+# ================
 # Pydantic Schemas
+# ================
+
 class InfoEmpresa(BaseModel):
     nome_empresa: str = Field(description="O nome da empresa do cliente no instagram.")
     keywords: List[str] = Field(description="Palavras-chave utilizadas pelos concorrentes do cliente, na biografia do instagram. Exemplo: pizzaria, restaurante, lanchonete")
@@ -44,9 +47,19 @@ class ContentStrategyAnalysis(BaseModel):
     descricao: str = Field(description="Descrição dos Contéudos.")
     tom: str = Field(description="Descrição do tom de voz.")
     resumo: str = Field(description="Resumo da estratégia de conteúdo.")
-    
 
+class Posicionamento(BaseModel):
+    """Define o posicionamento estratégico e o tom de voz da marca."""
+    tom_de_voz: str = Field(description="Adjetivos que descrevem como a marca deve se comunicar. Ex: 'Amigável, especialista e inspirador'.")
+    arquetipo: str = Field(description="O arquétipo de marca que melhor representa a empresa. Ex: 'O Sábio', 'O Explorador', 'O Cuidador'.")
+    diferenciais: List[str] = Field(description="Uma lista dos 2-3 principais pontos que tornam a marca única em relação à concorrência.")
+    proposta_de_valor: str = Field(description="Uma frase curta que resume o principal benefício que o cliente recebe. Ex: 'Ajudamos criativos a transformarem paixão em negócio com ferramentas e inspiração'.")
+    resumo_posicionamento: str = Field(description="Um parágrafo único que resume todo o posicionamento da marca, ideal para ser usado em briefings e guias de estilo.")
+
+# ==============================
 # Funções de Análise de Conteúdo
+# ==============================
+
 def parse_objetivos(briefing_text: str, llm: BaseChatModel) -> Objetivos:
 
     structured_llm = llm.with_structured_output(Objetivos)
@@ -136,7 +149,7 @@ def parse_publicos(briefing_text: str, llm: BaseChatModel) -> Publico:
         print(f"Falha ao analisar o briefing: {e}") 
         return Publico 
 
-def parse_pilares(briefing_text: str, llm: BaseChatModel, objetivos: Objetivos, publico: Publico) -> VetorDePilares:
+def parse_pilares(briefing_text: str, llm: BaseChatModel, objetivos: dict, publico: dict) -> VetorDePilares:
 
     structured_llm = llm.with_structured_output(VetorDePilares)
     objetivos_dict = objetivos
@@ -186,8 +199,49 @@ def parse_analyses(analyses: dict, objetivos: dict, llm: BaseChatModel) -> Vetor
         print(f"Falha ao analisar o briefing: {e}") 
         return None 
 
+def parse_posicionamento(objetivos: dict, publico: dict, llm: BaseChatModel) -> Posicionamento:
+    """
+    Sintetiza um posicionamento de marca estratégico com base nos objetivos e no público-alvo definidos.
+    """
+    structured_llm = llm.with_structured_output(Posicionamento)
 
+    objetivos_dump = objetivos
+    publico_dump = publico
+
+    prompt = f"""
+        ## Persona
+        Você é um estrategista de marca (Brand Strategist) sênior, especialista em criar identidades de marca fortes e coerentes.
+
+        ## Contexto
+        Você foi contratado para definir o posicionamento estratégico de uma marca no Instagram. Você já tem acesso às informações mais cruciais: os objetivos de negócio e o perfil detalhado do público-alvo. Sua tarefa não é extrair, mas sim CRIAR o posicionamento a partir desses dados.
+
+        ## Informações Estratégicas Fornecidas
+        
+        ### Objetivos do Cliente:
+        {json.dumps(objetivos_dump, indent=2, ensure_ascii=False)}
+
+        ### Perfil do Público-Alvo:
+        {json.dumps(publico_dump, indent=2, ensure_ascii=False)}
+
+        ## Tarefa
+        Com base EXCLUSIVAMENTE nos objetivos e no público-alvo acima, desenvolva o posicionamento da marca. Seja criativo, estratégico e conecte os pontos. É obrigatório preencher todos os campos do schema:
+        1.  **tom_de_voz:** Defina o tom de voz com 3 a 4 adjetivos que descrevem como a marca deve se comunicar para ressoar com o público e atingir seus objetivos. Ex: 'Amigável, especialista, inspirador'.
+        2.  **arquetipo:** Qual arquétipo de marca (ex: O Sábio, O Herói, O Mago) se alinha melhor com a missão de resolver as 'dores' do público?
+        3.  **diferenciais:** Quais são os 2-3 pontos únicos que a marca pode alegar, considerando o que o público valoriza?
+        4.  **proposta_de_valor:** Crie uma frase de impacto que comunique diretamente como a marca resolve o principal problema do público.
+        5.  **resumo_posicionamento:** Junte tudo em um parágrafo coeso e responda a pergunta esta pergunta em detalhes: como a empresa cliente quer ser percebida no instagram? Comece o resumo com "A 'nome_empresa' quer ser percebida no instagram como..."
+        """
+    
+    try:
+        return structured_llm.invoke(prompt) 
+    except Exception as e:
+        print(f"Falha ao gerar o posicionamento estratégico: {e}") 
+        return None
+
+# =====================================
 # Funções Tratamento e Análise de Dados
+# =====================================
+
 def load_profiles_to_df(path: str) -> pd.DataFrame:
     return pd.read_json(path) 
 

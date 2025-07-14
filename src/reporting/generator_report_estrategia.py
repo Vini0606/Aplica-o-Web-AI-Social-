@@ -21,8 +21,8 @@ def preencher_plano_marketing(
     responsavel,             
     objetivos,               
     persona,                 
-    pilares_conteudo,                      
-    data=None                                
+    pilares_conteudo,
+    posicionamento                                                     
 ):
 
     doc = Document()
@@ -51,12 +51,15 @@ def preencher_plano_marketing(
         else:
             doc.add_paragraph(f"{chave}: {', '.join(valor)}")
 
+    doc.add_heading("🎙️ Posicionamento e Tom de Voz", level=2)
+    doc.add_paragraph(posicionamento['resumo_posicionamento']) # Adiciona o texto diretamente
+    
     doc.add_heading("📚 Pilares de Conteúdo", level=2)
     for pilar in pilares_conteudo:
         doc.add_paragraph(f"• {pilar['nome']}: {pilar['objetivo']}")
         for exemplo in pilar.get('exemplos', []):
             doc.add_paragraph(f"        - {exemplo}")
-
+    
     doc.add_heading("◼️ Formatos:", level=2)
     doc.add_paragraph(f"""• Reels (Prioridade Alta): Tutoriais e dicas, Bastidores, Desafios e trends, 
                       Reações, Conteúdo educacional, Moda e tendências, 'Antes e depois', 

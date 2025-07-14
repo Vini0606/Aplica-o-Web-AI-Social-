@@ -243,6 +243,7 @@ if __name__ == "__main__":
     brief_data['publico'] = engine.parse_publicos(user_briefing, llm).model_dump()
     brief_data['pilares'] = engine.parse_pilares(user_briefing, llm, brief_data['objetivos'], brief_data['publico']).model_dump()["pilares"]
     brief_data['infoempresa'] = engine.parse_info_empresa(user_briefing, llm).model_dump()
+    brief_data['posicionamento'] = engine.parse_posicionamento(objetivos=brief_data['objetivos'], publico=brief_data['publico'], llm=llm).model_dump()     
     
     profile_df = engine.load_profiles_to_df(settings.PROFILE_PATH) 
     posts_df = engine.load_posts_to_df(settings.POST_PATH)
@@ -285,5 +286,6 @@ if __name__ == "__main__":
             "Interesses": brief_data['publico']['interesses'],
             "Dores": brief_data['publico']['dores']
         },
-        pilares_conteudo=[pilar for pilar in brief_data['pilares']]
+        pilares_conteudo=[pilar for pilar in brief_data['pilares']],
+        posicionamento=brief_data['posicionamento']
     )
