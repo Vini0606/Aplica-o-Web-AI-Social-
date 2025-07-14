@@ -244,7 +244,7 @@ if __name__ == "__main__":
     brief_data['pilares'] = engine.parse_pilares(user_briefing, llm, brief_data['objetivos'], brief_data['publico']).model_dump()["pilares"]
     brief_data['infoempresa'] = engine.parse_info_empresa(user_briefing, llm).model_dump()
     brief_data['posicionamento'] = engine.parse_posicionamento(objetivos=brief_data['objetivos'], publico=brief_data['publico'], llm=llm).model_dump()     
-    
+       
     profile_df = engine.load_profiles_to_df(settings.PROFILE_PATH) 
     posts_df = engine.load_posts_to_df(settings.POST_PATH)
     profiles_posts_df = engine.load_join_profiles_posts(posts_df, profile_df)
@@ -272,6 +272,20 @@ if __name__ == "__main__":
     objetivos_secundarios = brief_data['objetivos']['objetivo_secundario'] # Pega a lista de secundários
     list_objetivos = objetivo_principal + objetivos_secundarios # Cria uma NOVA lista concatenando as duas
     
+    # Gerar o calendário editorial com base nos dados já analisados
+    print("Gerando sugestão de calendário editorial...")
+    calendario_obj = engine.parse_calendario_editorial(
+        pilares=brief_data['pilares'],
+        objetivos=brief_data['objetivos'],
+        publico=brief_data['publico'],
+        llm=llm
+    )
+    if calendario_obj:
+        brief_data['calendario'] = calendario_obj.model_dump()["calendario"]
+    else:
+        brief_data['calendario'] = [] # Garante que a chave exista
+    print("Calendário gerado com sucesso!")     
+    
     generator_report_estrategia.preencher_plano_marketing(
         brief_data,
         caminho_saida=settings.ESTRATEGIA_PATH,
@@ -287,5 +301,6 @@ if __name__ == "__main__":
             "Dores": brief_data['publico']['dores']
         },
         pilares_conteudo=[pilar for pilar in brief_data['pilares']],
-        posicionamento=brief_data['posicionamento']
+        posicionamento=brief_data['posicionamento'],
+        calendario=brief_data.get('calendario', [])
     )

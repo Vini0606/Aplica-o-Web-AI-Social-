@@ -11,7 +11,7 @@ from docx import Document
 from docx.text.paragraph import Paragraph
 from copy import deepcopy
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.shared import Pt
+from docx.shared import Pt, Inches
 from datetime import date
 
 def preencher_plano_marketing(
@@ -22,7 +22,8 @@ def preencher_plano_marketing(
     objetivos,               
     persona,                 
     pilares_conteudo,
-    posicionamento                                                     
+    posicionamento,
+    calendario=[]                                                     
 ):
 
     doc = Document()
@@ -75,6 +76,44 @@ def preencher_plano_marketing(
     doc.add_paragraph(f"""• Lives (Prioridade Baixa): Debates, Entrevistas, Tutoriais e "Como fazer", 
                       Bastidores, Gameplays, Eventos ao vivo, Conteúdo interativo, 
                       Conteúdo temático, Sessões de perguntas e respostas, Apresentações e palestras """)
+
+
+    doc.add_heading("🗓️ Calendário Editorial Sugerido", level=2)
+    doc.add_paragraph(
+        "A seguir, uma sugestão de calendário semanal para distribuir os pilares de conteúdo. "
+        "Este cronograma pode ser adaptado conforme a performance e o feedback do público."
+    )
+    if calendario:
+        
+        # Definir os cabeçalhos da tabela
+        headers = ["Dia", "Pilar de Conteúdo", "Horário Sugerido"]
+        
+        # Adicionar a tabela com uma linha de cabeçalho
+        table = doc.add_table(rows=1, cols=len(headers))
+        table.style = 'Table Grid' # Aplica um estilo de grade à tabela
+        
+        # Preencher o cabeçalho
+        hdr_cells = table.rows[0].cells
+        for i, header in enumerate(headers):
+            hdr_cells[i].text = header
+            # Deixar o cabeçalho em negrito
+            hdr_cells[i].paragraphs[0].runs[0].font.bold = True
+
+        # Preencher as linhas com os dados do calendário
+        for item in calendario:
+            row_cells = table.add_row().cells
+            row_cells[0].text = item.get('dia', 'N/A')
+            row_cells[1].text = item.get('pilar', 'N/A')
+            row_cells[2].text = item.get('horario', 'N/A')
+
+        # Ajustar a largura das colunas (opcional, mas melhora a aparência)
+        # As larguras são apenas exemplos, ajuste conforme necessário
+        widths = (Inches(1.2), Inches(2.0), Inches(1.5))
+        for row in table.rows:
+            for idx, width in enumerate(widths):
+                row.cells[idx].width = width
+    else:
+        doc.add_paragraph("Nenhuma sugestão de calendário foi gerada.")
     
     doc.add_heading("📈 Estratégia de Engajamento e Crescimento", level=2)
     doc.add_paragraph(f"""• Interação Proativa: Dedicar 30 minutos por dia para responder a todos os 
