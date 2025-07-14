@@ -40,5 +40,5 @@ MAX_POSTS_PER_PROFILE = 5 #
 # Modelos de Linguagem (LLMs)
 LLM = ChatGroq(model="gemma2-9b-it", temperature=0.4)
 #LLM = ChatNVIDIA(model="google/gemma-2-9b-it", api_key=NVIDIA_API_KEY, temperature=0.2, top_p=0.7, max_tokens=1024)
-#LLM = ChatGoogleGenerativeAI(model="gemini-2.0-flash", google_api_key=GEMINI_API_KEY)
+LLM = ChatGoogleGenerativeAI(model="gemini-2.0-flash", google_api_key=GEMINI_API_KEY)
 LLM_HIGH = ChatGroq(model="llama3-70b-8192", temperature=0.4)

@@ -60,7 +60,7 @@ class EntradaCalendario(BaseModel):
     """Representa uma única entrada no calendário editorial."""
     dia: str = Field(description="Dia da semana (ex: 'Segunda-feira').")
     pilar: str = Field(description="O nome de um dos pilares de conteúdo fornecidos a ser usado neste dia.")
-    horario: str = Field(description="O horário de postagem sugerido (ex: '09:00', '18:00').")
+    periodo: str = Field(description="O periodo de postagem sugerido (ex: 'Manhã', 'Tarde', 'Noite').")
 
 class CalendarioEditorial(BaseModel):
     """Um vetor (lista) contendo as sugestões para o calendário editorial da semana."""
@@ -264,7 +264,7 @@ def parse_calendario_editorial(pilares: List[dict], objetivos: dict, publico: di
         Você é um gerente de mídias sociais experiente, responsável por criar calendários de conteúdo eficazes que engajam o público e atingem metas de negócio.
 
         ## Contexto
-        Você precisa criar uma sugestão de calendário de postagens para uma semana (Segunda a Domingo) para um cliente no Instagram. Sua sugestão deve ser estratégica, distribuindo os pilares de conteúdo ao longo da semana e sugerindo os melhores formatos e horários.
+        Você precisa criar uma sugestão de calendário de postagens para uma semana (Segunda a Domingo) para um cliente no Instagram. Sua sugestão deve ser estratégica, distribuindo os pilares de conteúdo ao longo da semana.
 
         ## Informações Estratégicas Disponíveis
 
@@ -279,8 +279,8 @@ def parse_calendario_editorial(pilares: List[dict], objetivos: dict, publico: di
 
         ## Tarefa
         Com base nas informações estratégicas fornecidas, crie um calendário editorial para 7 dias. Siga estritamente estas regras:
-        1.  **Distribuição:** Use os pilares de conteúdo fornecidos para preencher os 7 dias da semana. Garanta que todos os pilares planejados estejam dentro dos 7 dias, coloque mais de um pilar por dia, se necessário.
-        2.  **Horários:** Sugira horários de postagem que façam sentido, considerando a rotina do público-alvo (ex: horários de almoço, fim de tarde).
+        1.  **Distribuição:** Use os pilares de conteúdo fornecidos para preencher os 7 dias da semana. Garanta que todos os 7 dias da semana tenham pilares de conteúdo, se necessário, repita o mesmo pilar em dias diferentes.
+        2.  **Periodos:** Sugira periodos de postagem que façam sentido, considerando a rotina do público-alvo.
         3.  **Coerência:** As sugestões de pilar, formato e horário devem ser coerentes entre si e com os objetivos do cliente. Por exemplo, um pilar de "Vendas" pode ser mais eficaz em uma sexta-feira, enquanto um de "Inspiração" pode funcionar bem na segunda-feira de manhã.
         4.  **Estrutura:** Retorne uma lista contendo exatamente 7 entradas, uma para cada dia da semana.
         """
