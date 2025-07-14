@@ -44,7 +44,7 @@ def preencher_plano_marketing(
     for objetivo in objetivos:
         doc.add_paragraph(f"• {objetivo}")
 
-    doc.add_heading("🎯 Persona", level=2)
+    doc.add_heading("🎯 Público-alvo", level=2)
     for chave, valor in persona.items():
         if type(valor) is not list:
             doc.add_paragraph(f"{chave}: {valor}")

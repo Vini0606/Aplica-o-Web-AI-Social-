@@ -16,16 +16,28 @@ from wordcloud import WordCloud
 from datetime import date
 import locale
 import numpy as np
+import time
 
 try:
-    locale.setlocale(locale.LC_TIME, 'pt_BR.UTF-8')
+    locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
 except locale.Error:
+    # Em sistemas Windows:
     try:
-        locale.setlocale(locale.LC_TIME, 'Portuguese_Brazil')
+        locale.setlocale(locale.LC_ALL, 'Portuguese_Brazil')
     except locale.Error:
-        # Caso nenhum dos locales seja encontrado, imprime um aviso.
-        # A data pode sair em inglês ou no formato padrão do sistema.
-        print("Aviso: Não foi possível configurar o idioma para português do Brasil. A data pode ser exibida em outro idioma.")
+        print("Locale 'pt_BR.UTF-8' ou 'Portuguese_Brazil' não encontrado no sistema.")
+        # Fallback para o locale padrão do sistema
+        locale.setlocale(locale.LC_ALL, '')
+
+def safe_invoke(llm, prompt):
+    try:
+        prompt.encode("utf-8")  # Testa se o prompt tem caracteres válidos
+        return llm.invoke(prompt)
+    except UnicodeEncodeError as e:
+        print("⚠️ Prompt contém caracteres inválidos. Tentando limpar...")
+        # Remove caracteres malformados
+        prompt_clean = prompt.encode("utf-8", "ignore").decode("utf-8", "ignore")
+        return llm.invoke(prompt_clean)
 
 # --- Funções Auxiliares de Estilização ---
 def set_cell_shading(cell, hex_color: str):
@@ -53,10 +65,10 @@ def set_header_style(table):
 # --- Gráficos ---
 def Secao_2_1_Figura1(client_name, df_profiles_posts):
 
-    def plotarBarraMax(client_name, x_col, y_col, ax1):
+    def plotarBarraMax(client_name, x_col, y_col, ax1, x_col_name, y_col_name):
         
         # Calcular Estatísticas
-        top_10 = df_profiles_posts.groupby([y_col])[x_col].max().sort_values(ascending=True).tail(10).reset_index()
+        top_10 = df_profiles_posts.groupby([y_col])[x_col].max().sort_values(ascending=True).dropna().tail(10).reset_index()
         
         # --- 4. Configuração do Primeiro Gráfico (Superior) ---
         # Preparar cores e rótulos para o primeiro gráfico
@@ -74,9 +86,9 @@ def Secao_2_1_Figura1(client_name, df_profiles_posts):
         # Plota o gráfico de barras
         barras1 = ax1.barh(top_10[y_col], top_10[x_col], color=cores1)
         ax1.bar_label(barras1, fmt='%d', padding=5)
-        ax1.set_title(f'{y_col} X {x_col}')
-        ax1.set_xlabel(x_col)
-        ax1.set_ylabel(y_col)
+        ax1.set_title(f'{y_col_name} X {x_col_name}')
+        ax1.set_xlabel(x_col_name)
+        ax1.set_ylabel(y_col_name)
 
         return top_10
 
@@ -84,9 +96,9 @@ def Secao_2_1_Figura1(client_name, df_profiles_posts):
     # Cria a figura com 2 linhas e 1 coluna de gráficos
     fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(16, 5))
       
-    top_10_followers = plotarBarraMax(client_name, 'followersCount', 'username', ax1)
-    top_10_follows = plotarBarraMax(client_name, 'followsCount', 'username', ax2)
-    top_10_posts_count = plotarBarraMax(client_name, 'postsCount', 'username', ax3)
+    top_10_followers = plotarBarraMax(client_name, 'followersCount', 'username', ax1, 'Qtd de Seguidores', 'Usuários')
+    top_10_follows = plotarBarraMax(client_name, 'followsCount', 'username', ax2, 'Qtd Seguindo', 'Usuários')
+    top_10_posts_count = plotarBarraMax(client_name, 'postsCount', 'username', ax3, 'Qtd de Posts', 'Usuários')
 
     dataframes = {
                     "followers": top_10_followers,
@@ -253,60 +265,9 @@ def Secao_2_1_Figura3(posts_df):
 
     return buffer, df 
 
-def Secao_2_1_Figura3_(posts_df):
-
-    def plotarNuvemPalavras():
-
-        # No need to read the JSON again if posts_df is passed as an argument
-        # posts_df = pd.read_json("data/raw/post_data.json") 
-
-        lista_unica = []
-
-        # The fix is here:
-        for sublista in posts_df['hashtags'].dropna(): # Drop rows with NaN in hashtags
-            if isinstance(sublista, list): # Check if the entry is a list
-                for item in sublista:
-                    lista_unica.append(item)
-
-        # Your text here
-        texto = " ".join(lista_unica)
-
-        # Return None if there is no text to prevent further errors
-        if not texto:
-            return None, pd.DataFrame()
-
-        # Create the WordCloud object
-        nuvem_palavras = WordCloud(width=800, height=400, background_color="white").generate(texto)
-        
-        return nuvem_palavras, pd.DataFrame(lista_unica, columns=['hashtag'])['hashtag'].value_counts().reset_index()
-
-    # --- Main function logic ---
-    nuvem_palavras, df = plotarNuvemPalavras()
-
-    # Handle the case where no word cloud could be generated
-    if nuvem_palavras is None:
-        print("Aviso: Nenhuma hashtag encontrada para gerar a nuvem de palavras.")
-        # Return an empty buffer and dataframe
-        return io.BytesIO(), pd.DataFrame()
-
-    # Display the generated image
-    plt.figure(figsize=(16, 8))
-    plt.imshow(nuvem_palavras, interpolation='bilinear')
-    plt.axis("off") # Remove axes
-
-    # --- Finalization and Saving ---
-    plt.tight_layout(rect=[0, 0, 1, 0.96]) 
-
-    buffer = io.BytesIO() 
-    plt.savefig(buffer, format='png', dpi=300)
-    plt.close()
-    buffer.seek(0)
-
-    return buffer, df
-
 def Secao_2_2_Figura4(client_name, posts_df, df_profiles_posts):
  
-    def plotarBarraSum(client_name, df, x_col, y_col, ax1, fmt):
+    def plotarBarraSum(client_name, df, x_col, y_col, ax1, fmt, x_col_name, y_col_name):
         
         # Calcular Estatísticas
         top_10 = df.groupby([y_col])[x_col].sum().sort_values(ascending=True).tail(10).reset_index()
@@ -327,9 +288,9 @@ def Secao_2_2_Figura4(client_name, posts_df, df_profiles_posts):
         # Plota o gráfico de barras
         barras1 = ax1.barh(top_10[y_col], top_10[x_col], color=cores1)
         ax1.bar_label(barras1, fmt=fmt, padding=5)
-        ax1.set_title(f'{y_col} X {x_col}')
-        ax1.set_xlabel(x_col)
-        ax1.set_ylabel(y_col)
+        ax1.set_title(f'{y_col_name} X {x_col_name}')
+        ax1.set_xlabel(x_col_name)
+        ax1.set_ylabel(y_col_name)
 
         return top_10
 
@@ -337,17 +298,21 @@ def Secao_2_2_Figura4(client_name, posts_df, df_profiles_posts):
     # Cria a figura com 2 linhas e 1 coluna de gráficos
     fig, axes = plt.subplots(2, 3, figsize=(16, 5))
        
-    top_10_followers = plotarBarraSum(client_name, df_profiles_posts, 'likesSum', 'username', axes[0, 0], '%d')
-    top_10_follows = plotarBarraSum(client_name, df_profiles_posts, 'commentsSum', 'username', axes[0, 1], '%d')
-    top_10_posts_count = plotarBarraSum(client_name, df_profiles_posts, '% ENGAJAMENTO', 'username', axes[0, 2], '%.2f')
-    top_10_followers = plotarBarraSum(client_name, posts_df, 'likesCount', 'shortCode', axes[1, 0], '%d')
-    top_10_follows = plotarBarraSum(client_name, posts_df, 'commentsCount', 'shortCode', axes[1, 1], '%d')
-    top_10_posts_count = plotarBarraSum(client_name, posts_df, 'TOTAL ENGAJAMENTO', 'shortCode', axes[1, 2], '%d')
+    top_10_likes_profiles = plotarBarraSum(client_name, df_profiles_posts, 'likesSum', 'username', axes[0, 0], '%d', 'Qtd de Curtidas', 'Usuário')
+    top_10_comments_profiles = plotarBarraSum(client_name, df_profiles_posts, 'commentsSum', 'username', axes[0, 1], '%d', 'Qtd de Comentários', 'Usuário')
+    top_10_perc_engaj_profiles = plotarBarraSum(client_name, df_profiles_posts, '% ENGAJAMENTO', 'username', axes[0, 2], '%.2f', 'Taxa de Engajamento', 'Usuário')
+    top_10_likes_posts = plotarBarraSum(client_name, posts_df, 'likesCount', 'shortCode', axes[1, 0], '%d', 'Qtd de Curtidas', 'ShortCode (Publicação)')
+    top_10_comments_posts = plotarBarraSum(client_name, posts_df, 'commentsCount', 'shortCode', axes[1, 1], '%d', 'Qtd de Comentários', 'ShortCode (Publicação)')
+    top_10_engaj_posts = plotarBarraSum(client_name, posts_df, 'TOTAL ENGAJAMENTO', 'shortCode', axes[1, 2], '%d', 'Qtd de Engajamentos', 'ShortCode (Publicação)')
 
     dataframes = {
-                    "followers": top_10_followers,
-                    "follows": top_10_follows,
-                    "posts_count": top_10_posts_count
+                    "top_10_likes_profiles": top_10_likes_profiles,
+                    "top_10_comments_profiles": top_10_comments_profiles,
+                    "top_10_perc_engaj_profiles": top_10_perc_engaj_profiles,
+                    "top_10_likes_posts":top_10_likes_posts,
+                    "top_10_comments_posts":top_10_comments_posts,
+                    "top_10_engaj_posts":top_10_engaj_posts
+
     }
 
     # --- 6. Finalização e Exibição/Salvamento da Figura ---
@@ -369,7 +334,7 @@ def Secao_2_2_Figura4(client_name, posts_df, df_profiles_posts):
 
 def Secao_2_2_Figura5(dados_pivot_count, dados_pivot_total):   
 
-    def plotarBarrasAgrupadas(dados_pivot, x_column, y_column, group_column, ax):
+    def plotarBarrasAgrupadas(dados_pivot, x_column, y_column, group_column, ax, x_column_name, y_column_name):
 
         categorias_principais = dados_pivot.index
         subcategorias = dados_pivot.columns
@@ -398,9 +363,9 @@ def Secao_2_2_Figura5(dados_pivot_count, dados_pivot_total):
 
 
         # 6. Adicionar rótulos, título, legenda e outros detalhes de formatação
-        ax.set_xlabel(x_column, fontsize=12)
-        ax.set_ylabel(y_column, fontsize=12)
-        ax.set_title(f'{y_column} X {x_column}', fontsize=16)
+        ax.set_xlabel(y_column_name, fontsize=12)
+        ax.set_ylabel(x_column_name, fontsize=12)
+        ax.set_title(f'{y_column_name} X {x_column_name}', fontsize=16)
 
         # Posiciona os rótulos da categoria principal (Anos) no centro dos grupos de barras
         ax.set_xticks(x)
@@ -420,11 +385,15 @@ def Secao_2_2_Figura5(dados_pivot_count, dados_pivot_total):
     dataframes = {'Type': dados_pivot_count,
                   'total': dados_pivot_total}
     
+    print(dados_pivot_count)
+    
+    print(dados_pivot_total)
+
     # 4. Criar a figura e os eixos do gráfico
     fig, axes = plt.subplots(2, 1, figsize=(15, 10))
     
-    plotarBarrasAgrupadas(dados_pivot_count, 'countType', 'ownerUsername', 'Type', axes[0])
-    plotarBarrasAgrupadas(dados_pivot_total, 'ENGAJAMENTO TOTAL', 'ownerUsername', 'Type', axes[1])
+    plotarBarrasAgrupadas(dados_pivot_count, 'countType', 'ownerUsername', 'Type', axes[0], 'Qtd de Posts', 'Usuários')
+    plotarBarrasAgrupadas(dados_pivot_total, 'ENGAJAMENTO TOTAL', 'ownerUsername', 'Type', axes[1], 'Qtd de Engajamentos', 'Usuários')
 
     # Ajusta o layout para garantir que nada (como a legenda) seja cortado
     fig.tight_layout()
@@ -443,7 +412,7 @@ def Secao_2_2_Figura5(dados_pivot_count, dados_pivot_total):
 
 def Secao_2_2_Figura6(dados_pivot_likes, dados_pivot_comments):
 
-    def plotarBarrasAgrupadas(dados_pivot, x_column, y_column, group_column, ax):
+    def plotarBarrasAgrupadas(dados_pivot, x_column, y_column, group_column, ax, x_column_name, y_column_name):
 
         categorias_principais = dados_pivot.index
         subcategorias = dados_pivot.columns
@@ -472,9 +441,9 @@ def Secao_2_2_Figura6(dados_pivot_likes, dados_pivot_comments):
 
 
         # 6. Adicionar rótulos, título, legenda e outros detalhes de formatação
-        ax.set_xlabel(x_column, fontsize=12)
-        ax.set_ylabel(y_column, fontsize=12)
-        ax.set_title(f'{y_column} X {x_column}', fontsize=16)
+        ax.set_xlabel(y_column_name, fontsize=12)
+        ax.set_ylabel(x_column_name, fontsize=12)
+        ax.set_title(f'{y_column_name} X {x_column_name}', fontsize=16)
 
         # Posiciona os rótulos da categoria principal (Anos) no centro dos grupos de barras
         ax.set_xticks(x)
@@ -497,8 +466,8 @@ def Secao_2_2_Figura6(dados_pivot_likes, dados_pivot_comments):
     # 4. Criar a figura e os eixos do gráfico
     fig, axes = plt.subplots(2, 1, figsize=(15, 10))
     
-    plotarBarrasAgrupadas(dados_pivot_likes, 'likes', 'ownerUsername', 'Type', axes[0])
-    plotarBarrasAgrupadas(dados_pivot_comments, 'comments', 'ownerUsername', 'Type', axes[1])
+    plotarBarrasAgrupadas(dados_pivot_likes, 'likes', 'ownerUsername', 'Type', axes[0], 'Qtd de Curtidas', 'Usuários')
+    plotarBarrasAgrupadas(dados_pivot_comments, 'comments', 'ownerUsername', 'Type', axes[1], 'Qtd de Comentários', 'Usuários')
 
     # Ajusta o layout para garantir que nada (como a legenda) seja cortado
     fig.tight_layout()
@@ -517,7 +486,7 @@ def Secao_2_2_Figura6(dados_pivot_likes, dados_pivot_comments):
 
 def Secao_2_3_Figura7(client_name, periodo_df, dias_df):
 
-    def plotarBarraSum(top_10, x_col, y_col, ax1, fmt):
+    def plotarBarraSum(top_10, x_col, y_col, ax1, fmt, x_col_name, y_col_name):
         
         # --- 4. Configuração do Primeiro Gráfico (Superior) ---
         # Preparar cores e rótulos para o primeiro gráfico
@@ -526,9 +495,9 @@ def Secao_2_3_Figura7(client_name, periodo_df, dias_df):
         # Plota o gráfico de barras
         barras1 = ax1.bar(top_10.index, top_10.values, color=cores1)
         ax1.bar_label(barras1, fmt=fmt, padding=5)
-        ax1.set_title(f'{y_col} X {x_col}')
-        ax1.set_xlabel(x_col)
-        ax1.set_ylabel(y_col)
+        ax1.set_title(f'{y_col_name} X {x_col_name}')
+        ax1.set_xlabel(x_col_name)
+        ax1.set_ylabel(y_col_name)
 
         return top_10
 
@@ -536,8 +505,8 @@ def Secao_2_3_Figura7(client_name, periodo_df, dias_df):
     # Cria a figura com 2 linhas e 1 coluna de gráficos
     fig, axes = plt.subplots(nrows=2, ncols=1, figsize=(12, 10), gridspec_kw={'height_ratios': [1, 2]})
       
-    periodos_df = plotarBarraSum(periodo_df, 'Periodo do Dia', 'Count', axes[0], '%d')
-    dias_df = plotarBarraSum(dias_df, 'Dia da Semana', 'Count', axes[1], '%d')
+    periodos_df = plotarBarraSum(periodo_df, 'Periodo do Dia', 'Count', axes[0], '%d', 'Periodo do Dia', 'Qtd de Posts')
+    dias_df = plotarBarraSum(dias_df, 'Dia da Semana', 'Count', axes[1], '%d', 'Dias da Semana', 'Qtd de Posts')
 
     dataframes = {
                     "periodos": periodos_df,
@@ -563,7 +532,7 @@ def Secao_2_3_Figura7(client_name, periodo_df, dias_df):
 
 def Secao_2_3_Figura8(dados_pivot_periodos, dados_pivot_dias):
 
-    def plotarBarrasAgrupadas(dados_pivot, x_column, y_column, group_column, ax):
+    def plotarBarrasAgrupadas(dados_pivot, x_column, y_column, group_column, ax, x_column_name, y_column_name):
 
         categorias_principais = dados_pivot.index
         subcategorias = dados_pivot.columns
@@ -592,9 +561,9 @@ def Secao_2_3_Figura8(dados_pivot_periodos, dados_pivot_dias):
 
 
         # 6. Adicionar rótulos, título, legenda e outros detalhes de formatação
-        ax.set_xlabel(x_column, fontsize=12)
-        ax.set_ylabel(y_column, fontsize=12)
-        ax.set_title(f'{y_column} X {x_column}', fontsize=16)
+        ax.set_xlabel(x_column_name, fontsize=12)
+        ax.set_ylabel(y_column_name, fontsize=12)
+        ax.set_title(f'{y_column_name} X {x_column_name}', fontsize=16)
 
         # Posiciona os rótulos da categoria principal (Anos) no centro dos grupos de barras
         ax.set_xticks(x)
@@ -621,7 +590,7 @@ def Secao_2_3_Figura8(dados_pivot_periodos, dados_pivot_dias):
     periodo_df = dados_pivot_periodos.reindex(ordem_periodos)
     dias_df = dados_pivot_dias.reindex(ordem_dias)
     
-    plotarBarrasAgrupadas(dias_df, 'Dias da Semana', 'Contagem', 'Type', axes)
+    plotarBarrasAgrupadas(dias_df, 'Dias da Semana', 'Contagem', 'Type', axes, 'Dias de Semana', 'Qtd de Posts')
 
     dataframes = {'periodos': dados_pivot_periodos,
                   'dias': dados_pivot_dias}
@@ -638,13 +607,13 @@ def Secao_2_3_Figura8(dados_pivot_periodos, dados_pivot_dias):
     # 7. Exibir o gráfico
     plt.close()
 
-    #buffer.seek(0)
+    buffer.seek(0)
 
     return buffer, dataframes
 
 def Secao_2_3_Figura9(dados_pivot_periodos, dados_pivot_dias):
 
-    def plotarBarrasAgrupadas(dados_pivot, x_column, y_column, group_column, ax):
+    def plotarBarrasAgrupadas(dados_pivot, x_column, y_column, group_column, ax, x_column_name, y_column_name):
 
         categorias_principais = dados_pivot.index
         subcategorias = dados_pivot.columns
@@ -673,9 +642,9 @@ def Secao_2_3_Figura9(dados_pivot_periodos, dados_pivot_dias):
 
 
         # 6. Adicionar rótulos, título, legenda e outros detalhes de formatação
-        ax.set_xlabel(x_column, fontsize=12)
-        ax.set_ylabel(y_column, fontsize=12)
-        ax.set_title(f'{y_column} X {x_column}', fontsize=16)
+        ax.set_xlabel(x_column_name, fontsize=12)
+        ax.set_ylabel(y_column_name, fontsize=12)
+        ax.set_title(f'{y_column_name} X {x_column_name}', fontsize=16)
 
         # Posiciona os rótulos da categoria principal (Anos) no centro dos grupos de barras
         ax.set_xticks(x)
@@ -702,7 +671,7 @@ def Secao_2_3_Figura9(dados_pivot_periodos, dados_pivot_dias):
     periodo_df = dados_pivot_periodos.reindex(ordem_periodos)
     dias_df = dados_pivot_dias.reindex(ordem_dias)
     
-    plotarBarrasAgrupadas(periodo_df, 'Dias da Semana', 'Contagem', 'Type', axes)
+    plotarBarrasAgrupadas(periodo_df, 'Dias da Semana', 'Contagem', 'Type', axes, 'Periodos do Dia', 'Qtd de Posts')
 
     dataframes = {'periodos': dados_pivot_periodos,
                   'dias': dados_pivot_dias}
@@ -719,16 +688,17 @@ def Secao_2_3_Figura9(dados_pivot_periodos, dados_pivot_dias):
     # 7. Exibir o gráfico
     plt.close()
 
-    #buffer.seek(0)
+    buffer.seek(0)
 
     return buffer, dataframes
 
 # --- Análises de Gráficos ---
-
+      
 def analisarFigura1(llm, document, client_name, dataframes):
             
-    document.add_paragraph(f"A figura abaixo nos dá uma visão geral sobre quem são os melhores concorrentes do negócio, "
-                        "segundo os indicadores de interesse, tanto a nível de perfil quanto a nível de publicações.")
+    document.add_paragraph(f"A figura abaixo nos dá uma visão geral sobre quem são os melhores concorrentes da {client_name}, "
+                        "segundo os indicadores seguidores, seguindo, quantidade de posts de contagem de hashtags "
+                        "tanto a nível de perfil quanto a nível de publicações.")
         
     # Adiciona Figura 1
     paragrafo_da_imagem = document.add_paragraph()
@@ -739,52 +709,46 @@ def analisarFigura1(llm, document, client_name, dataframes):
 
     # Gerar Análise dos Dados da Figura 1 
     textos_analises = []
-            
-    for nome_df, df in dict_df.items():
-
-        if not df.empty:
-            df_ord = df.sort_values(by=str(df.columns[-1]), ascending=False)
-        else:
-            df_ord = df
-        print(df_ord, end='\n')
-            
-        if nome_df == 'followers':
-            inicio = "De acordo com o primeiro gráfico da figura acima..."
-        elif nome_df == 'follows':
-            inicio = "Já de acordo com o segundo gráfico da figura..."
-        elif nome_df == 'posts_count':
-            inicio = "Quanto ao último gráfico da figura acima..."
                 
-        prompt = f"""
-            Persona: Você é um analista\estrategista de marketing de mídias sociais sênior, especialista em social metrics. 
-            Contexto: Produza uma análise exclusivamente descritiva detalhada dos dados do gráfico de barras abaixo. 
-            Tarefa: Gere um texto científico detalhado de 1 parágrafo com sua descrição. 
-            Formato: Responda apenas o parágrafo da análise.
-            Requisito: Inicie o texto dizendo {inicio}.
-            Dados: {df_ord}
-                """
+    prompt = f"""
+        Persona: Você é um analista\estrategista de marketing de mídias sociais sênior, especialista em social metrics. 
+        Contexto: Produza uma análise exclusivamente descritiva detalhada dos dados do gráfico de barras abaixo. 
+        Tarefa: Gere um texto científico detalhado de 1 parágrafo com sua análise. 
+        Formato: Responda apenas o parágrafo da análise.
+        Requisito: Inicie o texto dizendo "Segundo os gráficos acima...
+        
+        Dados dos Top 10 concorrentes mais seguidores: {dict_df['followers']}
+
+        Dados dos Top 10  concorrentes mais seguindo pessoas: {dict_df['follows']}
+
+        Dados dos Top 10  concorrentes com mais publicações: {dict_df['posts_count']}
+    
+    """
             
-        analise = llm.invoke(prompt)
-        textos_analises.append(analise.content)
-        document.add_paragraph(analise.content) 
+    analise = llm.invoke(prompt)
+    document.add_paragraph(analise.content.replace('\n',''))  
             
-    analise_figura_1 = ' '.join(textos_analises) 
-            
+    bio_cols = ['username', 'fullName', 'biography', 'externalUrl']        
+    usernames = dict_df['followers']['username'].unique()
+    profiles_df = dataframes['df_profiles_posts']
+    df_bios = profiles_df[profiles_df['username'].isin(usernames)][bio_cols]
+    
     # Gerar Recomendações            
     prompt = f"""
-        Persona: Você é um estrategista de marketing de mídias sociais sênior, especialista em social metrics. 
-        Contexto: Com base nesta analise abaixo, quais recomendações você sugere para a estratégia de conteúdo do cliente "{client_name}" no instagram? Justifique de forma clara suas recomendações segundo os dados.
-        Tarefa: Gere um texto detalhado de 1 parágrafo com suas recomendações. 
+        Persona: Você é um estrategista de marketing de mídias sociais sênior, especialista em posicionamento de marca. 
+        Contexto: Com base nos dados abaixo, faça uma análise do posicionamento dos melhores concorrentes da empresa cliente "{client_name}" no instagram.
+        Tarefa: Gere um texto detalhado de 1 parágrafo com sua análise e que responda as perguntas: as biografias estão claras? Explicam o que as marcas fazem? Usam CTAs ou emojis estratégicos?. 
         Formato: Responda apenas o parágrafo das recomendações.
-        Requisito: Inicie o texto dizendo "Com base nas análises acima, é recomendado...". Além disso, garanta que sua análise responda as perguntas estratégicas do negócio.
-        Perguntas Estratégicas: Qual deve ser a meta mínima de seguidores se o cliente quiser estar em décimo entre os concorrentes mais seguidores? E se ele não quiser estar entre os 10 com mais posts e que mais seguem pessoas qual o numéro máximo desses indicadores?
-        Analises: {analise_figura_1}
-    """
-    print()
+        Requisito: Inicie o texto dizendo "Com base nas análises das biuografias dos concorrentes, foi possível perceber...". 
+        
+        Biografias: {df_bios}
+    
+        """
     recomendacoes = llm.invoke(prompt)
-    print(f'Recomendações: {recomendacoes.content}')
-    document.add_paragraph(recomendacoes.content)
-            
+    document.add_paragraph(recomendacoes.content.replace('\n',''))
+
+    return '\n'.join([analise.content.replace('\n',''), recomendacoes.content.replace('\n','')])
+
 def analisarFigura2(llm, document, dataframes):
     document.add_paragraph(f"Na análise que se segue, será possível perceber uma visão geral sobre os concorrentes "
                         "por meio dos resultados de uma análise de clusterização. Esta análise é um tipo de análise estatística que "
@@ -851,36 +815,36 @@ def analisarFigura3(llm, client_name, document, dataframes):
     paragrafo_da_imagem = document.add_paragraph()
     paragrafo_da_imagem.alignment = WD_ALIGN_PARAGRAPH.CENTER
     run_da_imagem = paragrafo_da_imagem.add_run() 
-    chart_buffer, df = Secao_2_1_Figura3_(dataframes['posts_df'])
+    chart_buffer, df = Secao_2_1_Figura3(dataframes['posts_df'])
     run_da_imagem.add_picture(chart_buffer, width=Inches(6))
 
     # Gerar Análise dos Dados da Figura 1 
     prompt = f"""
         Persona: Você é um analista\estrategista de marketing de mídias sociais sênior, especialista em social metrics. 
-        Contexto: Produza uma análise descritiva detalhada com a sua interpretação dos dados da tabela de frequências das hashtags utilizadas pelos concorrentes do cliente "{client_name}". 
-        Tarefa: Gere um texto científico detalhado de 2 parágrafos com sua análise. 
+        Contexto: Produza uma análise descritiva detalhada que responda a pergunta: Quais são as hashtags mais e menos utilizadas pelos concorrentes da "{client_name}" no instagram?. 
+        Tarefa: Gere um texto científico detalhado de 1 parágrafo com sua análise. 
         Formato: Responda apenas os parágrafos da análise.
         Requisito: Inicie o texto dizendo "De acordo com a nuvem de palavras acima...".
         Dados: {df}
     """
             
     analise = llm.invoke(prompt)
-    document.add_paragraph(analise.content)
+    document.add_paragraph(analise.content.replace('\n',''))
 
     prompt = f"""
         Persona: Você é um estrategista de marketing de mídias sociais sênior, especialista em social metrics. 
-        Contexto: Com base nesta analise abaixo, quais recomendações você sugere para a estratégia de conteúdo do cliente "{client_name}" no instagram? Justifique de forma clara suas recomendações segundo os dados.
+        Contexto: Com base nesta analise abaixo, quais hashtags você sugere que o cliente "{client_name}" utilize no instagram? Justifique de forma clara suas recomendações segundo os dados.
         Tarefa: Gere um texto detalhado de 1 parágrafo com suas recomendações. 
         Formato: Responda apenas o parágrafo das recomendações.
         Requisito: Inicie o texto dizendo "Com base nas análises acima..."
-        Analises: {analise}
+        Analises: {analise.content.replace('\n','')}
     """
-            
-    print()
+
     recomendacoes = llm.invoke(prompt)
-    print(f'Recomendações: {recomendacoes.content}')
-    document.add_paragraph(recomendacoes.content)
- 
+    document.add_paragraph(recomendacoes.content.replace('\n',''))
+
+    return '\n'.join([analise.content.replace('\n',''), recomendacoes.content.replace('\n','')])
+  
 def analisarFigura4(llm, client_name, document, dataframes):
             
     document.add_paragraph(f"A figura abaixo nos dá uma visão geral sobre quem são os melhores concorrentes do negócio, "
@@ -892,55 +856,63 @@ def analisarFigura4(llm, client_name, document, dataframes):
     run_da_imagem = paragrafo_da_imagem.add_run() 
     chart_buffer, dict_df = Secao_2_2_Figura4(client_name, dataframes['posts_df'], dataframes['df_profiles_posts'])
     run_da_imagem.add_picture(chart_buffer, width=Inches(6))
-
-    # Gerar Análise dos Dados da Figura 1 
-    textos_analises = []
-    for nome_df, df in dict_df.items():
-
-        if not df.empty:
-            df_ord = df.sort_values(by=str(df.columns[-1]), ascending=False)
-        else:
-            df_ord = df
-        print(df_ord, end='\n')
-            
-        if nome_df == 'followers':
-            inicio = "De acordo com o primeiro gráfico da figura acima..."
-        elif nome_df == 'follows':
-            inicio = "Já de acordo com o segundo gráfico da figura..."
-        elif nome_df == 'posts_count':
-            inicio = "Quanto ao último gráfico da figura acima..."
                 
-        prompt = f"""
+    prompt_perfis = f"""
             Persona: Você é um analista\estrategista de marketing de mídias sociais sênior, especialista em social metrics. 
-            Contexto: Produza uma análise detalhada com a sua interpretação dos dados do gráfico de barras dos perfis concorrentes do cliente "{client_name}". 
-            Tarefa: Gere um texto científico detalhado de 1 parágrafo com sua análise. 
-            Formato: Responda apenas o parágrafo da análise.
-            Requisito: Inicie o texto dizendo {inicio}.
-            Dados: {df_ord}
-        """
+            Contexto: Analise os dados abaixo e responda a pergunta: quem são os concorrentes com a maior quantidade de likes, comentários e taxa de engajamento do cliente "{client_name}"?. 
+            Tarefa: Gere um texto científico detalhado de 1 parágrafo com sua resposta. 
+            Formato: Responda apenas o parágrafo da resposta.
+            Requisito: Inicie o texto dizendo "De acordo com os 3 primeiros gráficos da figura acima...".
             
-        analise = llm.invoke(prompt)
-        textos_analises.append(analise.content)
-            
-            
-    analise_figura_1 = ' '.join(textos_analises)
-    document.add_paragraph('\n\n'.join(textos_analises))
+            Top 10 perfis com maior quantidade de likes: {dict_df['top_10_likes_profiles']}
 
-    prompt = f"""
-        Persona: Você é um estrategista de marketing de mídias sociais sênior, especialista em social metrics. 
-        Contexto: Com base nesta analise abaixo, quais recomendações você sugere para a estratégia do cliente "{client_name}" no instagram? Justifique de forma clara cada uma delas
-        Tarefa: Gere um texto detalhado de 1 parágrafo com suas recomendações. 
-        Formato: Responda apenas o parágrafo das recomendações.
-        Requisito: Inicie o texto dizendo "Com base nas análises acima..."
-        Analises: {analise_figura_1}
+            Top 10 perfis com maior quantidade de comments: {dict_df['top_10_comments_profiles']}
+
+            Top 10 perfis com maior quantidade de percentual de engajamento: {dict_df["top_10_perc_engaj_profiles"]}
     """
             
-    print()
-    recomendacoes = llm.invoke(prompt)
-    print(f'Recomendações: {recomendacoes.content}')
-    document.add_paragraph(recomendacoes.content)
+    analise_perfis = llm.invoke(prompt_perfis)            
+    document.add_paragraph(analise_perfis.content.replace('\n',''))
+
+    prompt_posts = f"""
+            Persona: Você é um analista\estrategista de marketing de mídias sociais sênior, especialista em social metrics. 
+            Contexto: Analise os dados abaixo e responda a pergunta: quais são as publicações dos concorrentes com a maior quantidade de likes, comentários e taxa de engajamento do cliente "{client_name}"?. 
+            Tarefa: Gere um texto científico detalhado de 1 parágrafo com sua resposta. 
+            Formato: Responda apenas o parágrafo da resposta.
+            Requisito: Inicie o texto dizendo "Já de acordo com os 3 últimos gráficos da figura acima...".
             
+            Top 10 perfis com maior quantidade de likes: {dict_df['top_10_likes_posts']}
+
+            Top 10 perfis com maior quantidade de comments: {dict_df['top_10_comments_posts']}
+
+            Top 10 perfis com maior quantidade de percentual de engajamento: {dict_df['top_10_engaj_posts']}
+    """
+            
+    analise_posts = llm.invoke(prompt_posts)            
+    document.add_paragraph(analise_posts.content.replace('\n',''))
+
+    posts_df = dataframes['posts_df']
+
+    list_posts = dict_df['top_10_engaj_posts']['shortCode'].unique()
+    cols_content = ['shortCode', 'caption', 'hashtags', 'mentions', 'firstComment', 'latestComments']
+    df_content = posts_df[posts_df['shortCode'].isin(list_posts)][cols_content]
+    
+    prompt = f"""
+        Persona: Você é um estrategista de marketing de mídias sociais sênior, especialista em análise de conteúdo. 
+        Contexto: Analise o melhores conteúdos dos concorrentes da empresa "{client_name}" abaixo e responda as perguntas: Qual extamanete é o conteúdo das publicações? O que as pessoas comentaram sobre o contéudo?  
+        Tarefa: Gere um texto detalhado de 1 parágrafo com suas análises. 
+        Formato: Responda apenas o parágrafo das recomendações.
+        Requisito: Inicie o texto dizendo "Quanto ao conteúdo das publicações,..."
+        Publicações: {df_content}
+    """
+            
+    recomendacoes = llm.invoke(prompt)
+    document.add_paragraph(recomendacoes.content.replace('\n',''))
+
+    return '\n'.join([analise_perfis.content.replace('\n',''), analise_posts.content.replace('\n',''), recomendacoes.content.replace('\n','')])
+
 def analisarFigura5(llm, client_name, document, dataframes):
+    
     document.add_paragraph(f"Na análise que se segue, será possível perceber uma visão geral sobre quais os formatos de conteúdo "
                                 "os concorrentes mais utilizam, bem como os que mais geraram engajamento.")
             
@@ -950,44 +922,36 @@ def analisarFigura5(llm, client_name, document, dataframes):
     run_da_imagem = paragrafo_da_imagem.add_run() 
     chart_buffer, dict_df = Secao_2_2_Figura5(dataframes['dados_pivot_count'], dataframes['dados_pivot_total'])
     run_da_imagem.add_picture(chart_buffer, width=Inches(6))
-
-    # Gerar Análise dos Dados da Figura 1 
-    textos_analises = []
-    for nome_df, df in dict_df.items():
-            
-        if nome_df == 'Type':
-            inicio = "De acordo com o primeiro gráfico da figura acima..."
-        elif nome_df == 'total':
-            inicio = "Já de acordo com o segundo gráfico da figura..."
                 
-        prompt = f"""
+    prompt = f"""
         Persona: Você é um analista\estrategista de marketing de mídias sociais sênior, especialista em social metrics. 
-        Contexto: Produza uma análise detalhada com a sua interpretação dos dados dos gráficos dos perfis concorrentes do cliente "{client_name}" abaixo. 
+        Contexto: Analise os dados abaixo e responda as perguntas: Quais são os formatos mais utilizados e que mais geram engajamento para os concorrentes da "{client_name}"? 
         Tarefa: Gere um texto científico detalhado de 1 parágrafo com sua análise. 
         Formato: Responda apenas o parágrafo da análise.
-        Requisito: Inicie o texto dizendo {inicio}.
-        Dados: {df}
-        """
+        Requisito: Inicie o texto dizendo "No gráfico acima, é possível perceber que...".
+        
+        Quantidade de posts por tipo dos 3 melhores concorrentes: {dict_df['Type']}
+        
+        Quantidade de Interações por tipo dos 3 melhores concorrentes: {dict_df['total']}
+    
+    """
             
-        analise = llm.invoke(prompt)
-        textos_analises.append(analise.content)
-            
-    analise_figura_1 = ' '.join(textos_analises)
-    document.add_paragraph('\n\n'.join(textos_analises))
+    analise = llm.invoke(prompt)
+    document.add_paragraph(analise.content.replace('\n',''))
 
     prompt = f"""
         Persona: Você é um estrategista de marketing de mídias sociais sênior, especialista em social metrics. 
-        Contexto: Com base nesta analise abaixo, quais recomendações você sugere para a estratégia do cliente "{client_name}" no instagram? Justifique de forma clara cada uma delas
+        Contexto: Com base nesta analise abaixo, quais formatos de conteúdo a empresa "{client_name}" deve explorar no instagram? Justifique de forma clara cada uma delas
         Tarefa: Gere um texto detalhado de 1 parágrafo com suas recomendações. 
         Formato: Responda apenas o parágrafo das recomendações.
         Requisito: Inicie o texto dizendo "Com base nas análises acima..."
-        Analises: {analise_figura_1}
+        Analises: {analise.content.replace('\n','')}
     """
             
-    print()
     recomendacoes = llm.invoke(prompt)
-    print(f'Recomendações: {recomendacoes.content}')
-    document.add_paragraph(recomendacoes.content) 
+    document.add_paragraph(recomendacoes.content)
+
+    return '\n'.join([analise.content.replace('\n',''), recomendacoes.content.replace('\n','')]) 
 
 def analisarFigura6(llm, client_name, document, dataframes):
     
@@ -1000,44 +964,34 @@ def analisarFigura6(llm, client_name, document, dataframes):
     run_da_imagem = paragrafo_da_imagem.add_run() 
     chart_buffer, dict_df = Secao_2_2_Figura6(dataframes['dados_pivot_likes'], dataframes['dados_pivot_comments'])
     run_da_imagem.add_picture(chart_buffer, width=Inches(6))
-
-    # Gerar Análise dos Dados da Figura 1 
-    textos_analises = []
-    for nome_df, df in dict_df.items():
-            
-        if nome_df == 'likes':
-            inicio = "De acordo com o primeiro gráfico da figura acima..."
-        elif nome_df == 'comments':
-            inicio = "Já de acordo com o segundo gráfico da figura..."
                 
-        prompt = f"""
-            Persona: Você é um analista\estrategista de marketing de mídias sociais sênior, especialista em social metrics. 
-            Contexto: Produza uma análise detalhada com a sua interpretação dos dados dos gráficos dos perfis concorrentes do cliente "{client_name}" abaixo. 
-            Tarefa: Gere um texto científico detalhado de 1 parágrafo com sua análise. 
-            Formato: Responda apenas o parágrafo da análise.
-            Requisito: Inicie o texto dizendo {inicio}.
-            Dados: {df}
-        """
+    prompt = f"""
+        Persona: Você é um analista\estrategista de marketing de mídias sociais sênior, especialista em social metrics. 
+        Contexto: Produza uma análise detalhada que responda as perguntas: quais foram os tipos de conteúdo que mais geraram likes e comentários para os 3 melhores concorrentes? 
+        Tarefa: Gere um texto científico detalhado de 1 parágrafo com sua análise. 
+        Formato: Responda apenas o parágrafo da análise.
+        Requisito: Inicie o texto dizendo "De acordo com os gráficos acima...".
+        
+        Proporção de comentários dos 3 melhores concorrentes por tipo de publicação: {dict_df['comments']}
+        
+        Proporção de likes dos 3 melhores concorrentes por tipo de publicação: {dict_df['likes']}
+    """
             
-        analise = llm.invoke(prompt)
-        textos_analises.append(analise.content)
-            
-    analise_figura_1 = ' '.join(textos_analises)
-    document.add_paragraph('\n\n'.join(textos_analises))
+    analise = llm.invoke(prompt)            
+    document.add_paragraph(analise.content.replace('\n',''))
 
     prompt = f"""
         Persona: Você é um estrategista de marketing de mídias sociais sênior, especialista em social metrics. 
-        Contexto: Com base nesta analise abaixo, quais recomendações você sugere para a estratégia do cliente "{client_name}" no instagram? Justifique de forma clara cada uma delas
+        Contexto: Com base nesta analise abaixo, quais os tipos de conteúdo você sugere para a empresa "{client_name}" no instagram para gerar engajamento? Justifique de forma clara cada uma delas
         Tarefa: Gere um texto detalhado de 1 parágrafo com suas recomendações. 
         Formato: Responda apenas o parágrafo das recomendações.
         Requisito: Inicie o texto dizendo "Com base nas análises acima..."
-        Analises: {analise_figura_1}
+        Analises: {analise.content.replace('\n','')}
     """
-            
-    print()
     recomendacoes = llm.invoke(prompt)
-    print(f'Recomendações: {recomendacoes.content}')
-    document.add_paragraph(recomendacoes.content) 
+    document.add_paragraph(recomendacoes.content.replace('\n',''))
+
+    return '\n'.join([analise.content.replace('\n',''), recomendacoes.content.replace('\n','')]) 
 
 def analisarFigura7(llm, client_name, document, dataframes):
             
@@ -1050,48 +1004,36 @@ def analisarFigura7(llm, client_name, document, dataframes):
     run_da_imagem = paragrafo_da_imagem.add_run() 
     chart_buffer, dict_df = Secao_2_3_Figura7(client_name, dataframes['periodo_df'], dataframes['dias_df'])
     run_da_imagem.add_picture(chart_buffer, width=Inches(6))
-
-    # Gerar Análise dos Dados da Figura 1 
-    textos_analises = []
-    for nome_df, df in dict_df.items():
-
-        print(df, end='\n')
-            
-        if nome_df == 'periodos':
-            inicio = "De acordo com o primeiro gráfico da figura acima..."
-        elif nome_df == 'dias':
-            inicio = "Já de acordo com o segundo gráfico da figura..."
-                
-        prompt = f"""
+    
+    prompt = f"""
         Persona: Você é um analista\estrategista de marketing de mídias sociais sênior, especialista em social metrics. 
-        Contexto: Produza uma análise detalhada com a sua interpretação dos dados do gráfico de barras dos perfis concorrentes do cliente "{client_name}". 
+        Contexto: Produza uma análise detalhada dos dados abaixo dos concorrentes da empresa "{client_name}" e responda a pergunta: Quais periodos e dias da semana os concorrentes mais publicam? 
         Tarefa: Gere um texto científico detalhado de 1 parágrafo com sua análise. 
         Formato: Responda apenas o parágrafo da análise.
-        Requisito: Inicie o texto dizendo {inicio}.
-        Dados: {df}
-        """
+        Requisito: Inicie o texto dizendo "De acordo com os gráficos acima...".
+        
+        Quantidade de publicações pelo periodo do dia: {dict_df['periodos']}
+        
+        Quantidade de publicações pelo dia da semana: {dict_df['dias']}
+    """
             
-        analise = llm.invoke(prompt)
-        textos_analises.append(analise.content)
-            
-            
-    analise_figura_1 = ' '.join(textos_analises)
-    document.add_paragraph('\n\n'.join(textos_analises))
+    analise = llm.invoke(prompt)            
+    document.add_paragraph(analise.content.replace('\n',''))
 
     prompt = f"""
         Persona: Você é um estrategista de marketing de mídias sociais sênior, especialista em social metrics. 
-        Contexto: Com base nesta analise abaixo, quais recomendações você sugere para a estratégia do cliente "{client_name}" no instagram? Justifique de forma clara cada uma delas
-        Tarefa: Gere um texto detalhado de 1 parágrafo com suas recomendações. 
-        Formato: Responda apenas o parágrafo das recomendações.
+        Contexto: Com base nesta analise abaixo, os melhores dias e periodos para a empresa "{client_name}" publicar no instagram? Justifique de forma clara cada uma delas
+        Tarefa: Gere um texto detalhado de 1 parágrafo com sua resposta. 
+        Formato: Responda apenas o parágrafo das respostas.
         Requisito: Inicie o texto dizendo "Com base nas análises acima..."
-        Analises: {analise_figura_1}
+        Analises: {analise.content.replace('\n','')}
     """
             
-    print()
     recomendacoes = llm.invoke(prompt)
-    print(f'Recomendações: {recomendacoes.content}')
-    document.add_paragraph(recomendacoes.content)
-            
+    document.add_paragraph(recomendacoes.content.replace('\n',''))
+
+    return '\n'.join([analise.content.replace('\n',''), recomendacoes.content.replace('\n','')])
+
 def analisarFigura8(llm, client_name, document, dataframes):
     
     document.add_paragraph(f"Na análise que se segue, será possível perceber uma visão geral sobre a proporção de formatos pelo dia da semana, "
@@ -1103,44 +1045,34 @@ def analisarFigura8(llm, client_name, document, dataframes):
     run_da_imagem = paragrafo_da_imagem.add_run() 
     chart_buffer, dict_df = Secao_2_3_Figura8(dataframes['dados_pivot_periodos'], dataframes['dados_pivot_dias'])
     run_da_imagem.add_picture(chart_buffer, width=Inches(6))
-
-    # Gerar Análise dos Dados da Figura 1 
-    textos_analises = []
-    for nome_df, df in dict_df.items():
-            
-        if nome_df == 'periodos':
-            inicio = "De acordo com o primeiro gráfico da figura acima..."
-        elif nome_df == 'dias':
-            inicio = "Já de acordo com o segundo gráfico da figura..."
                 
-        prompt = f"""
+    prompt = f"""
             Persona: Você é um analista\estrategista de marketing de mídias sociais sênior, especialista em social metrics. 
-            Contexto: Produza uma análise detalhada com a sua interpretação dos dados dos gráficos dos perfis concorrentes do cliente "{client_name}" abaixo. 
-            Tarefa: Gere um texto científico detalhado de 1 parágrafo com sua análise. 
+            Contexto: Produza uma análise detalhada que responda as perguntas: quais os tipos de conteúdos mais postados pelos concorrentes nos dias da semana?. 
+            Tarefa: Gere um texto detalhado de 1 parágrafo com sua resposta. 
             Formato: Responda apenas o parágrafo da análise.
-            Requisito: Inicie o texto dizendo {inicio}.
-            Dados: {df}
-        """
+            Requisito: Inicie o texto dizendo 'De acordo com o gráfico acima...'.
+    
+            Quantidade de posts por tipo e dias da semana: {dict_df['dias']}
+
+    """
             
-        analise = llm.invoke(prompt)
-        textos_analises.append(analise.content)
-            
-    analise_figura_1 = ' '.join(textos_analises)
-    document.add_paragraph('\n\n'.join(textos_analises))
+    analise = safe_invoke(llm, prompt)        
+    document.add_paragraph(analise.content.replace('\n',''))
 
     prompt = f"""
                 Persona: Você é um estrategista de marketing de mídias sociais sênior, especialista em social metrics. 
-                Contexto: Com base nesta analise abaixo, quais recomendações você sugere para a estratégia do cliente "{client_name}" no instagram? Justifique de forma clara cada uma delas
+                Contexto: Com base nesta analise abaixo, qual a proporção de tipos de conteúdo nos dias da semana que a empresa "{client_name}" deveria ter no instagram? Justifique de forma clara cada uma delas
                 Tarefa: Gere um texto detalhado de 1 parágrafo com suas recomendações. 
                 Formato: Responda apenas o parágrafo das recomendações.
                 Requisito: Inicie o texto dizendo "Com base nas análises acima..."
-                Analises: {analise_figura_1}
+                Analises: {analise.content.replace('\n','')}
             """
             
-    print()
     recomendacoes = llm.invoke(prompt)
-    print(f'Recomendações: {recomendacoes.content}')
-    document.add_paragraph(recomendacoes.content) 
+    document.add_paragraph(recomendacoes.content.replace('\n',''))
+
+    return '\n'.join([analise.content.replace('\n',''), recomendacoes.content.replace('\n','')]) 
 
 def analisarFigura9(llm, client_name, document, dataframes):
             
@@ -1153,45 +1085,33 @@ def analisarFigura9(llm, client_name, document, dataframes):
     run_da_imagem = paragrafo_da_imagem.add_run() 
     chart_buffer, dict_df = Secao_2_3_Figura9(dataframes['dados_pivot_periodos'], dataframes['dados_pivot_dias'])
     run_da_imagem.add_picture(chart_buffer, width=Inches(6))
-
-    # Gerar Análise dos Dados da Figura 1 
-    textos_analises = []
-    for nome_df, df in dict_df.items():
-            
-        if nome_df == 'periodos':
-            inicio = "De acordo com o primeiro gráfico da figura acima..."
-        elif nome_df == 'dias':
-            inicio = "Já de acordo com o segundo gráfico da figura..."
                 
-        prompt = f"""
+    prompt = f"""
             Persona: Você é um analista\estrategista de marketing de mídias sociais sênior, especialista em social metrics. 
-            Contexto: Produza uma análise detalhada com a sua interpretação dos dados dos gráficos dos perfis concorrentes do cliente "{client_name}" abaixo. 
+            Contexto: Produza uma análise detalhada e reponda as perguntas: quais os tipos de conteúdos mais postados pelos concorrentes nos periodos? 
             Tarefa: Gere um texto científico detalhado de 1 parágrafo com sua análise. 
             Formato: Responda apenas o parágrafo da análise.
-            Requisito: Inicie o texto dizendo {inicio}.
-            Dados: {df}
-        """
+            Requisito: Inicie o texto dizendo "Segundo o gráfico acima...".
             
-        analise = llm.invoke(prompt)
-        textos_analises.append(analise.content)
+            Dados: {dict_df['periodos']}
+    """
             
-    analise_figura_1 = ' '.join(textos_analises)
-    document.add_paragraph('\n\n'.join(textos_analises))
+    analise = safe_invoke(llm, prompt)
+    document.add_paragraph(analise.content.replace('\n',''))
 
     prompt = f"""
         Persona: Você é um estrategista de marketing de mídias sociais sênior, especialista em social metrics. 
-        Contexto: Com base nesta analise abaixo, quais recomendações você sugere para a estratégia do cliente "{client_name}" no instagram? Justifique de forma clara cada uma delas
+        Contexto: Com base nesta analise abaixo, qual a proporção de tipos de conteúdo nos periodos que a empresa "{client_name}" deveria ter no instagram? Justifique de forma clara sua resposta
         Tarefa: Gere um texto detalhado de 1 parágrafo com suas recomendações. 
         Formato: Responda apenas o parágrafo das recomendações.
         Requisito: Inicie o texto dizendo "Com base nas análises acima..."
-        Analises: {analise_figura_1}
+        Analises: {analise.content.replace('\n','')}
     """
             
-    print()
     recomendacoes = llm.invoke(prompt)
-    print(f'Recomendações: {recomendacoes.content}')
-    document.add_paragraph(recomendacoes.content) 
+    document.add_paragraph(recomendacoes.content.replace('\n',''))
 
+    return '\n'.join([analise.content.replace('\n',''), recomendacoes.content.replace('\n','')]) 
 
 # --- Funções de Geração de Seções
 def gerarCapa(document, titulo, cliente, autor, data):
@@ -1228,8 +1148,6 @@ def gerarCapa(document, titulo, cliente, autor, data):
     p_data = document.add_paragraph()
     p_data.alignment = WD_ALIGN_PARAGRAPH.CENTER
     p_data.add_run(data)
-
-    # Adiciona quebra de página
     document.add_page_break()
 
 # --- Função Principal de Geração de Relatório ---
@@ -1246,68 +1164,43 @@ def generate_full_report(llm, dataframes, client_name, output_path, template_pat
     nome_autor = "Equipe AI Social"
     data_analise = f"{date.today().strftime("%A, %d de %B de %Y")}"
 
+    # Gerar Relatório:
+    
     # Capa e Resumo
     gerarCapa(document, titulo_analise, nome_cliente, nome_autor, data_analise) 
     
     # 1. Introdução
-    document.add_page_break()
     document.add_heading("1.0 Introdução", level=1)
-    intro = ('No cenário digital contemporâneo, o Instagram consolidou-se como uma '
-                'plataforma indispensável para a construção de marcas, o posicionamento de '
-                'mercado e o engajamento direto com o público. O sucesso neste ambiente '
-                'altamente competitivo, no entanto, transcende a simples presença online, '
-                'exigindo uma estratégia de conteúdo dinâmica, bem informada e continuamente '
-                'otimizada. Este relatório apresenta uma análise competitiva aprofundada, '
-                'utilizando uma metodologia baseada em dados para desvendar as táticas, '
-                'o desempenho e as estratégias de comunicação dos principais concorrentes no '
-                'Instagram, fornecendo um panorama claro do ecossistema digital em que a sua '
-                'marca está inserida.'
-                '\n\n'
-                'A importância desta pesquisa reside na sua capacidade de transformar dados '
-                'brutos, extraídos diretamente da atividade dos concorrentes, em inteligência '
-                'estratégica acionável. Muitas organizações ainda operam com base na '
-                'intuição ou em observações superficiais, deixando de explorar a riqueza de '
-                'informações disponíveis publicamente. Esta análise preenche essa lacuna ao '
-                'adotar uma abordagem sistemática e quantitativa, que não apenas identifica '
-                'os líderes em métricas de vaidade, como seguidores, mas também aprofunda-se '
-                'no que realmente impulsiona o engajamento, quais formatos de conteúdo '
-                'ressoam com a audiência e quais temas geram maior interação. A relevância '
-                'do estudo está em oferecer um roteiro para a tomada de decisões mais '
-                'eficazes, otimizando a alocação de recursos e refinando a comunicação da '
-                'marca.'
-                '\n\n'
-                'O problema central que esta pesquisa busca solucionar é a necessidade de '
-                'compreender os elementos mais eficazes das estratégias de conteúdo dos '
-                'concorrentes para, a partir deles, extrair aprendizados e oportunidades '
-                'para a empresa cliente. Por meio da análise de perfis, da clusterização '
-                'para identificar grupos de concorrentes com comportamentos similares, '
-                'do estudo de performance por publicação e da investigação sobre a frequência '
-                'e os horários das postagens, este relatório visa responder a perguntas '
-                'cruciais: O que os concorrentes de maior sucesso estão fazendo de diferente? '
-                'Quais tipos de conteúdo geram mais curtidas e comentários? E quais são as '
-                'melhores janelas de oportunidade para publicar? O objetivo final é fornecer '
-                'um diagnóstico preciso e recomendações práticas que permitam à sua empresa '
-                'fortalecer sua própria estratégia digital, ganhar vantagem competitiva e '
-                'ampliar seu impacto no Instagram.')
+    intro = ('Este relatório apresenta uma análise competitiva aprofundada do Instagram, '
+         'utilizando uma metodologia baseada em dados para desvendar as táticas e o '
+         'desempenho dos concorrentes. A pesquisa visa transformar dados brutos em '
+         'inteligência acionável, aprofundando-se no que impulsiona o engajamento, '
+         'quais formatos e temas de conteúdo geram maior interação, e quais os '
+         'melhores horários para publicação. O objetivo final é fornecer um '
+         'diagnóstico preciso e recomendações práticas para solucionar a '
+         'necessidade de compreender os elementos mais eficazes das estratégias '
+         'de concorrentes, permitindo que a empresa cliente fortaleça sua própria '
+         'presença digital e ganhe vantagem competitiva na plataforma.')
     document.add_paragraph(intro) 
 
     # 2. Analise de Concorrentes
     document.add_heading("2.0 Análise dos Concorrentes", level=1)
-
-    # 2.1 Análise de Perfil dos Concorrentes
-    texto_secao_2_1 = (f"Nesta seção será realizada uma análise comparativa entre os concorrentes do Jeronim Rodrigues Ba, "
+    texto_secao_2_1 = (f"Nesta seção será realizada uma análise comparativa entre os concorrentes do {nome_cliente}, "
             "a fim de traçar os seus perfis. Além de serem analisadas métricas de performance, frequência e recência, "
             "também serão analisados, qualitativamente, seus respectivos conteúdos, bem como o tom de voz, tópicos frequentes "
             "e posicionamento de marca. O principal objetivo desta seção é o de avaliar a presença visual, textual e social "
             "dos concorrentes e seus respectivos posicionamentos com indicadores e análises estratégicos dos perfis e conteúdos "
             "dos concorrentes.")       
-    document.add_heading("2.1 Análise de Perfil dos Concorrentes", level=2)
+    
     document.add_paragraph(texto_secao_2_1)
-    analisarFigura1(llm, document, client_name, dataframes)
-    analisarFigura3(llm, client_name, document, dataframes)
+    
+    # 2.1 Análise de Perfil dos Concorrentes
+    document.add_heading("2.1 Análise de Perfil dos Concorrentes", level=2)
+    analises_figura_1 = analisarFigura1(llm, document, client_name, dataframes)
+    analises_figura_3 = analisarFigura3(llm, client_name, document, dataframes)
     
     # 2.2 Análise de Engajamento por Postagem
-    texto_secao_2_1 = (f"Nesta seção será realizada uma análise comparativa entre os as publicações dos concorrentes do Jeronim Rodrigues Ba, "
+    texto_secao_2_1 = (f"Nesta seção será realizada uma análise comparativa entre os as publicações dos concorrentes do {nome_cliente}, "
             "a fim de compreender suas respectivas estratégias de conteúdo. Além de serem analisadas métricas como curtidas e comentários "
             "também serão analisados, qualitativamente, seus respectivos conteúdos, bem como o tom de voz, tópicos frequentes "
             "e posicionamento de marca. O principal objetivo desta seção é o de avaliar os pontos fortes das melhores publicações "
@@ -1315,22 +1208,42 @@ def generate_full_report(llm, dataframes, client_name, output_path, template_pat
             "dos concorrentes.")
     document.add_heading("2.2 Análise de Engajamento por Postagem", level=2)
     document.add_paragraph(texto_secao_2_1)  
-    analisarFigura4(llm, client_name, document, dataframes)
-    analisarFigura5(llm, client_name, document, dataframes)
-    analisarFigura6(llm, client_name, document, dataframes)
-
+    analises_figura_4 = analisarFigura4(llm, client_name, document, dataframes)
+    analises_figura_5 = analisarFigura5(llm, client_name, document, dataframes)
+    analises_figura_6 = analisarFigura6(llm, client_name, document, dataframes)
+    time.sleep(60) 
+    
     # 2.3 Frequência e Consistência de Publicação
-    texto_secao_2_1 = (f"Nesta seção será realizada uma análise temporal das publicações dos concorrentes do Jeronim Rodrigues Ba, "
+    texto_secao_2_1 = (f"Nesta seção será realizada uma análise temporal das publicações dos concorrentes do {nome_cliente}, "
                     "a fim de compreender suas respectivas estratégias de conteúdo, mais especificamente, quais os melhores horários, "
                     "periodos e dias para publicar no feed.")
     document.add_heading("2.3 Frequência e Consistência de Publicação", level=2)
     document.add_paragraph(texto_secao_2_1)
-    analisarFigura7(llm, client_name, document, dataframes)
-    analisarFigura8(llm, client_name, document, dataframes)
-    analisarFigura9(llm, client_name, document, dataframes)
+    analises_figura_7 = analisarFigura7(llm, client_name, document, dataframes)
+    analises_figura_8 = analisarFigura8(llm, client_name, document, dataframes)
+    analises_figura_9 = analisarFigura9(llm, client_name, document, dataframes)
 
+    
+    analises = '\n'.join([analises_figura_1, analises_figura_3, analises_figura_4, 
+                          analises_figura_5, analises_figura_6, analises_figura_7,
+                          analises_figura_8, analises_figura_9])
+    
     # 3. Recomendações Gerais
-    document.add_heading("3.0 Recomendações Gerais", level=1)
+    document.add_heading("3.0 Conclusões\Recomendações Finais", level=1)
+    
+    prompt = f""" 
+            Persona: Você é um analista\estrategista de marketing de mídias sociais sênior, especialista em social metrics. 
+            Contexto: Com base em todas essas analises, gere um conclusão e resuma todas as recomendações dadas a empresa "{client_name}". 
+            Tarefa: Gere um texto detalhado de 1 parágrafo com suas conclusões e recomendações finais. 
+            Formato: Responda apenas o parágrafo da análise.
+            Requisito: Inicie o texto dizendo "Com base em todas as análises realizadas...".
+            
+            Análises: {print('analises')}
+
+    """
+             
+    conclusao = llm.invoke(prompt)
+    document.add_paragraph(conclusao.content.replace('\n',''))
     
     # Salva o documento
     document.save(output_path)  

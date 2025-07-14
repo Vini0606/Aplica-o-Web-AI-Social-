@@ -3,6 +3,8 @@ langchain
 langchain-openai
 langchain-groq
 langchain-ollama
+langchain-nvidia-ai-endpoints
+langchain-google-genai
 langchain-community
 python-docx
 pandas

@@ -12,7 +12,7 @@ from langchain_core.language_models.chat_models import BaseChatModel
 # Pydantic Schemas
 class InfoEmpresa(BaseModel):
     nome_empresa: str = Field(description="O nome da empresa do cliente no instagram.")
-    keywords: List[str] = Field(description="Palavras-chave relacionadas a empresa e aos produtos da empresa.")
+    keywords: List[str] = Field(description="Palavras-chave utilizadas pelos concorrentes do cliente, na biografia do instagram. Exemplo: pizzaria, restaurante, lanchonete")
     localizacao: str = Field(description="Endereço completo da empresa.")
     bairros: List[str] = Field(description="Bairros muito próximos, ou pertencentes, da localização da empresa")
 
@@ -29,7 +29,6 @@ class Publico(BaseModel):
     renda: str = Field(description="A faixa da renda do principal publico-alvo do cliente. [Ex: R$ 4.000 - R$ 7.000]")
     interesses: List[str] = Field(description="Lista de Comportamentos e Interesses do publico-alvo do cliente. [Ex: Segue perfis de inspiração, DIY (Faça Você Mesmo) e dicas de negócios\nUsa o Instagram diariamente para descobrir novas marcas e produtos.]")
     dores: List[str] = Field(description="Lista de Dores e Necessidades do público-alvo do cliente. Ex: Sente dificuldade em organizar suas finanças como autônoma. Busca por materiais de alta qualidade para seus produtos. Precisa de dicas para otimizar seu tempo e ser mais produtiva.]")
-    #competitor_usernames: List[str] = Field(description="Lista de nomes de usuário dos concorrentes.")
 
 class PilaresConteudo(BaseModel):
     nome: str = Field(description="O nome do pilar de conteúdo, exemplo: 'Educacional'.")
@@ -52,20 +51,26 @@ def parse_objetivos(briefing_text: str, llm: BaseChatModel) -> Objetivos:
 
     structured_llm = llm.with_structured_output(Objetivos)
     prompt = f"""
-              ## Contexto 
-              Analise o briefing abaixo e extraia os objetivos do cliente. 
-              
-              ## Requisitos
-              O Objetivo principal e cada um dos objetivos secundários devem conter ao menos: 1 métrica mensurável, alcançabilidade, Uma data. 
-              Exemplos: 
-              - Aumentar as vendas online em 15% através do Instagram nos próximos 6 meses. 
-              - Aumentar o número de seguidores qualificados em 20% no próximo trimestre.
-              - Aumentar a taxa de engajamento (curtidas, comentários, salvamentos) em 10% ao mês.
-              - Gerar [Número] de leads qualificados por mês através de links na bio e stories.
-              - Construir e fortalecer o reconhecimento da marca (brand awareness).
-              
-              ## Briefing:
-              \n\"{briefing_text}\ """ 
+            ## Persona
+            Você é um consultor de marketing digital especializado em definir metas estratégicas para redes sociais. Sua principal habilidade é traduzir as necessidades de um cliente em objetivos SMART (Específicos, Mensuráveis, Atingíveis, Relevantes e com Prazo definido).
+
+            ## Contexto
+            Você recebeu o seguinte briefing de um novo cliente. Sua tarefa é analisar este texto e extrair os objetivos de negócio e de marketing dele.
+
+            ## Tarefa
+            Extraia o objetivo principal e os objetivos secundários do cliente. Siga estritamente as seguintes regras:
+            1.  **Objetivo Principal:** Deve ser a meta de negócio mais importante. Se o cliente mencionar vendas ou crescimento, priorize isso.
+            2.  **Objetivos Secundários:** Devem ser metas de marketing que suportam o objetivo principal (ex: engajamento, crescimento de seguidores, geração de leads).
+            3.  **Formato SMART:** Cada objetivo, tanto o principal quanto os secundários, DEVE ser reescrito para conter:
+                - **Métrica clara:** Um número ou percentual (ex: "aumentar em 15%", "gerar 50 leads").
+                - **Prazo definido:** Um período de tempo (ex: "nos próximos 3 meses", "até o final do ano").
+            4.  **Inferência:** Se o cliente não fornecer um número ou prazo exato, infira um valor razoável com base no contexto do briefing (ex: se ele quer "crescer", defina como "crescer 10% em 2 meses"). Não deixe esses campos em branco.
+            5.  **Objetividade:** Os objetivos devem ser o mais objetivos e concisos possível.
+
+            
+            ## Briefing do Cliente:
+            \n\"{briefing_text}\"
+            """ 
     try:
         return structured_llm.invoke(prompt) 
     except Exception as e:
@@ -76,11 +81,22 @@ def parse_info_empresa(briefing_text: str, llm: BaseChatModel) -> InfoEmpresa:
 
     structured_llm = llm.with_structured_output(InfoEmpresa)
     prompt = f"""
-              ## Contexto 
-              Analise o briefing abaixo e extraia as informações básicas da empresa cliente. 
-              
-              ## Briefing:
-              \n\"{briefing_text}\ """ 
+            ## Persona
+            Você é um assistente de pesquisa com excelente atenção aos detalhes, especializado em extrair informações de perfis de negócios.
+
+            ## Contexto
+            Você está analisando o briefing de um cliente para preencher a ficha cadastral da empresa dele.
+
+            ## Tarefa
+            Analise o briefing abaixo e extraia as informações da empresa cliente, seguindo estas diretrizes para cada campo:
+            - **nome_empresa:** O nome comercial da empresa.
+            - **keywords:** Pense no tipo de negócio (pizzaria, consultório, etc.) e em termos relacionados que os concorrentes usariam na bio do Instagram. Extraia do texto ou sugira com base no negócio.
+            - **localizacao:** Extraia o endereço mais completo possível. Se apenas a cidade ou bairro for mencionado, extraia isso.
+            - **bairros:** Liste os bairros exatos mencionados. Se nenhum for mencionado, liste bairros conhecidos que pertencem à `localizacao` extraída.
+
+            ## Briefing:
+            \n\"{briefing_text}\"
+            """ 
     try:
         return structured_llm.invoke(prompt) 
     except Exception as e:
@@ -90,21 +106,63 @@ def parse_info_empresa(briefing_text: str, llm: BaseChatModel) -> InfoEmpresa:
 def parse_publicos(briefing_text: str, llm: BaseChatModel) -> Publico:
 
     structured_llm = llm.with_structured_output(Publico)
-    prompt = f"Analise o briefing a seguir e extraia as informações necessárias sobre o principal público-alvo da empresa cliente. Briefing:\n\"{briefing_text}\"" 
+
+    prompt = f"""
+            ## Persona
+            Você é um analista de pesquisa de mercado especializado em criar "personas" de clientes. Seu objetivo é construir um perfil detalhado do público-alvo principal de uma empresa.
+
+            ## Contexto
+            Você está analisando o briefing de um cliente para definir o perfil do consumidor ideal para as campanhas de marketing.
+
+            ## Tarefa
+            Analise o briefing a seguir e extraia as informações sobre o principal público-alvo. Para cada campo, siga as instruções:
+            - **Se a informação não estiver explícita no texto, use o contexto geral do briefing para inferir a resposta mais provável.**
+            - **Se for impossível inferir, preencha o campo com a string "Não especificado".**
+            - **idade:** Uma faixa etária (ex: 25-35 anos).
+            - **genero:** Masculino, Feminino ou Ambos.
+            - **localizacao:** Onde esse público mora ou frequenta (ex: Mesmo bairro da empresa, Capitais do Brasil).
+            - **ocupacao:** Profissão ou estilo de vida (ex: Universitários, Empreendedores, Donas de casa).
+            - **renda:** Faixa de renda mensal (ex: R$ 3.000 - R$ 5.000).
+            - **interesses:** Hobbies, comportamentos e tipos de conteúdo que consomem.
+            - **dores:** Os problemas, desafios e necessidades que o produto/serviço do cliente resolve para esse público. Pense "o que tira o sono dessa pessoa?".
+
+            ## Briefing:
+            \n\"{briefing_text}\"
+            """
+
     try:
         return structured_llm.invoke(prompt) 
     except Exception as e:
         print(f"Falha ao analisar o briefing: {e}") 
-        return None 
+        return Publico 
 
-def parse_pilares(briefing_text: str, llm: BaseChatModel) -> VetorDePilares:
+def parse_pilares(briefing_text: str, llm: BaseChatModel, objetivos: Objetivos, publico: Publico) -> VetorDePilares:
 
     structured_llm = llm.with_structured_output(VetorDePilares)
-    prompt = f"""Analise o briefing a seguir e gere tópicos de conteúdo que a empresa cliente precisa falar no instagram para alcançar seus objetivos. 
-                Retorne no mínimno 7 tópicos diferentes. 
-                
-                Briefing:\n\"{briefing_text}\" 
-            """ 
+    objetivos_dict = objetivos
+    publico_dict = publico
+
+    prompt = f"""
+            ## Persona
+            Você é um estrategista de conteúdo sênior para mídias sociais. Sua especialidade é criar linhas editoriais de conteúdo que geram resultados de negócio.
+
+            ## Contexto
+            Você precisa definir as linhas editoriais, ou pilares de conteúdo, para a estratégia de marketing de conteúdo de um novo cliente no instagram. Você já tem em mãos os objetivos e a definição do público-alvo. O briefing geral também está disponível para contexto adicional.
+
+            ## Informações Estratégicas
+            - **Objetivos do Cliente:** {json.dumps(objetivos_dict, indent=2, ensure_ascii=False)}
+            - **Público-Alvo:** {json.dumps(publico_dict, indent=2, ensure_ascii=False)}
+
+            ## Tarefa
+            Com base nos objetivos e no público-alvo fornecidos, crie 5 a 7 pilares de conteúdo para o Instagram do cliente. Para cada pilar, siga estritamente a estrutura:
+            1.  **Nome:** Um nome curto e descritivo para o pilar (ex: "Educacional", "Bastidores", "Prova Social").
+            2.  **Objetivo:** Explique como este pilar ajuda a alcançar um dos objetivos do cliente E/OU resolve uma das 'dores' do público-alvo.
+            3.  **Exemplos:** Forneça de 3 a 5 exemplos de posts concretos (ideias de Reels, Carrossel, Stories) para este pilar.
+
+            ## Briefing (para contexto adicional):
+            \n\"{briefing_text}\"
+            """
+    
     try:
         return structured_llm.invoke(prompt) 
     except Exception as e:
@@ -191,17 +249,28 @@ def load_join_profiles_posts(original_posts_df: pd.DataFrame, original_profile_d
     return df_profiles_posts
 
 def load_top_3_profiles(posts_df: pd.DataFrame, profile_df: pd.DataFrame) -> List[pd.DataFrame]:
+    """
+    Identifica os 3 melhores perfis com base no número de seguidores
+    e retorna DataFrames pivotados para análise.
+    """
+    # --- CORREÇÃO ---
+    # 1. REMOVIDAS as linhas que liam os arquivos .json novamente.
+    #    Agora a função usa os DataFrames passados como argumentos.
 
-    def filtro(usernames):
-        return (posts_df['ownerUsername'] == usernames[0]) | (posts_df['ownerUsername'] == usernames[1]) | (posts_df['ownerUsername'] == usernames[2])
+    # 2. O filtro agora é dinâmico. Ele pega os 3 perfis com mais seguidores.
+    #    Você pode mudar 'followersCount' para outra métrica se preferir (ex: 'TOTAL ENGAJAMENTO').
+    top_3_usernames = profile_df.nlargest(3, 'followersCount')['username'].tolist()
+    
+    # Garante que temos exatamente 3 nomes de usuário, caso contrário, retorna DataFrames vazios para evitar erros.
+    if len(top_3_usernames) < 3:
+        print("Aviso: Não foram encontrados 3 perfis para analisar. Retornando DataFrames vazios.")
+        empty_df = pd.DataFrame()
+        return [empty_df, empty_df, empty_df, empty_df]
 
-    posts_df = pd.read_json("data/raw/post_data.json")
-    profile_df = pd.read_json("data/raw/profile_data.json")
-        
-    filtro = filtro(['tarcisiogdf', 'romeuzemaoficial', 'eduardoleite'])
+    # Filtra os posts para incluir apenas os dos top 3 perfis
+    posts_df_top_3 = posts_df[posts_df['ownerUsername'].isin(top_3_usernames)].copy()
 
-    posts_df_top_3 = posts_df[filtro]
-
+    # O resto da lógica da função permanece o mesmo
     posts_df_top_3_merged = pd.merge(posts_df_top_3, profile_df, how='left', left_on='ownerUsername', right_on='username')
 
     posts_df_top_3_grouped = posts_df_top_3_merged.groupby(['ownerUsername', 'type']).agg(
@@ -213,26 +282,23 @@ def load_top_3_profiles(posts_df: pd.DataFrame, profile_df: pd.DataFrame) -> Lis
 
     posts_df_top_3_grouped['ENGAJAMENTO TOTAL'] = posts_df_top_3_grouped['commentsSum'] + posts_df_top_3_grouped['likesSum']
 
-    dados_pivot_count = posts_df_top_3_grouped.pivot(index='ownerUsername', columns='type', values='countType')
-    dados_pivot_total = posts_df_top_3_grouped.pivot(index='ownerUsername', columns='type', values='ENGAJAMENTO TOTAL')
-
-    dados_pivot_likes = posts_df_top_3_grouped.pivot(index='ownerUsername', columns='type', values='likesSum')
-    dados_pivot_comments = posts_df_top_3_grouped.pivot(index='ownerUsername', columns='type', values='commentsSum')
+    # Preenche com 0 para evitar erros na pivotação se algum tipo de post estiver faltando
+    dados_pivot_count = posts_df_top_3_grouped.pivot_table(index='ownerUsername', columns='type', values='countType', fill_value=0)
+    dados_pivot_total = posts_df_top_3_grouped.pivot_table(index='ownerUsername', columns='type', values='ENGAJAMENTO TOTAL', fill_value=0)
+    dados_pivot_likes = posts_df_top_3_grouped.pivot_table(index='ownerUsername', columns='type', values='likesSum', fill_value=0)
+    dados_pivot_comments = posts_df_top_3_grouped.pivot_table(index='ownerUsername', columns='type', values='commentsSum', fill_value=0)
 
     return [dados_pivot_count, dados_pivot_total, dados_pivot_likes, dados_pivot_comments]
 
 def load_periodo_dias(posts_df: pd.DataFrame, profile_df: pd.DataFrame) -> List[pd.DataFrame]:
 
-    posts_df = pd.read_json("data/raw/post_data.json")
-    profile_df = pd.read_json("data/raw/profile_data.json")
-
+    # 1. Garante que a coluna de data está no formato correto
     posts_df['DATA-HORA'] = pd.to_datetime(posts_df['timestamp'])
                 
-                # Usamos .dt.day_name() para obter o nome completo do dia da semana
-    posts_df['DIA_DA_SEMANA'] = posts_df['DATA-HORA'].dt.day_name(locale='pt_BR')
-
-    # --- Extraindo o Período do Dia ---
-    # Vamos definir as faixas horárias para cada período
+    # 2. Extrai o nome do dia da semana em português
+    posts_df['DIA_DA_SEMANA'] = posts_df['DATA-HORA'].dt.day_name(locale='pt_BR.UTF-8')
+    
+    # 3. Extrai o período do dia (Manhã, Tarde, etc.)
     def get_periodo_do_dia(hour):
         if 5 <= hour < 12:
             return 'Manhã'
@@ -240,38 +306,39 @@ def load_periodo_dias(posts_df: pd.DataFrame, profile_df: pd.DataFrame) -> List[
             return 'Tarde'
         elif 18 <= hour < 23:
             return 'Noite'
-        else: # 23 to 5 (inclusive of 23, exclusive of 5)
+        else:
             return 'Madrugada'
-
-    # Aplicamos a função à hora de cada datetime
-    # Primeiro, pegamos a hora, depois aplicamos a função
     posts_df['PERIODO_DO_DIA'] = posts_df['DATA-HORA'].dt.hour.apply(get_periodo_do_dia)
 
-    periodo_df = posts_df.groupby(['PERIODO_DO_DIA']).size().sort_values(ascending=False)
-    dias_df = posts_df.groupby(['DIA_DA_SEMANA']).size().sort_values(ascending=False)
+    # 4. Conta as ocorrências usando .value_counts()
+    periodo_df = posts_df['PERIODO_DO_DIA'].value_counts()
+    dias_df = posts_df['DIA_DA_SEMANA'].value_counts()
+    dias_df.rename(index={'Terça-feira': 'Terca-feira', 'Sábado': 'Sabado'})
 
+    # Renomeia a série (opcional, mas bom para clareza)
     periodo_df = periodo_df.rename('Count')
     dias_df = dias_df.rename('Count')
 
-    # Lista com a nova ordem desejada para as cidades
+    # 6. Define a ordem correta para os eixos do gráfico
     ordem_periodos = ['Manhã', 'Tarde', 'Noite', 'Madrugada']
     ordem_dias = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado', 'Domingo']
 
-    periodo_df = periodo_df.reindex(ordem_periodos)
-    dias_df = dias_df.reindex(ordem_dias)
-        
-    return [periodo_df, dias_df] 
+    # 7. Reordena, preenche os dias sem dados com 0 e converte para número inteiro
+    # Esta lógica continua a mesma e funciona perfeitamente com a saída do .value_counts()
+    periodo_df = periodo_df.reindex(ordem_periodos).fillna(0).astype(int)
+    dias_df = dias_df.reindex(ordem_dias).fillna(0).astype(int)
+    
+    # --- FIM DA CORREÇÃO ---
+    
+    return [periodo_df, dias_df]
 
 def load_pivot_periodo_dias(posts_df: pd.DataFrame, profile_df: pd.DataFrame) -> List[pd.DataFrame]:
-
-    posts_df = pd.read_json("data/raw/post_data.json")
-    profile_df = pd.read_json("data/raw/profile_data.json")
 
     # Converte a coluna 'timestamp' para o formato datetime
     posts_df['DATA-HORA'] = pd.to_datetime(posts_df['timestamp'])
                 
     # Usamos .dt.day_name() para obter o nome completo do dia da semana em português
-    posts_df['DIA_DA_SEMANA'] = posts_df['DATA-HORA'].dt.day_name(locale='pt_BR')
+    posts_df['DIA_DA_SEMANA'] = posts_df['DATA-HORA'].dt.day_name(locale='pt_BR.UTF-8')
 
     # --- Extraindo o Período do Dia ---
 
@@ -306,7 +373,8 @@ def load_pivot_periodo_dias(posts_df: pd.DataFrame, profile_df: pd.DataFrame) ->
     dados_pivot_periodos = periodo_df.pivot(index='PERIODO_DO_DIA', columns='type', values=0)
 
     # Cria uma tabela pivot com o engajamento total por tipo de postagem e usuário
-    dados_pivot_dias = dias_df.pivot(index='DIA_DA_SEMANA', columns='type', values=0)
+    #sdados_pivot_dias = dias_df.pivot(index='DIA_DA_SEMANA', columns='type', values=0)
+    dados_pivot_dias = dias_df.pivot_table(index='DIA_DA_SEMANA', columns='type', values=0, aggfunc='sum')
 
     # Lista com a nova ordem desejada para as cidades
     ordem_periodos = ['Manhã', 'Tarde', 'Noite', 'Madrugada']
@@ -362,4 +430,9 @@ def analyze_content_strategy_for_user(posts_df: pd.DataFrame, username: str, llm
         return structured_llm.invoke(prompt) 
     except Exception as e:
         print(f"Falha na análise de conteúdo para {username}: {e}") 
-        return ContentStrategyAnalysis(content_pillars=[], tone_of_voice="Erro na análise", summary="Erro na análise.")
+        return ContentStrategyAnalysis(
+               pilares=[],
+               descricao="Erro na análise",
+               tom="Erro na análise",
+               resumo="Erro na análise"
+              )
