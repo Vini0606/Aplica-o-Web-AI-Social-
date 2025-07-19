@@ -21,3 +21,16 @@ unstructured
 openpyxl
 apify-client
 serpapi
+google-generativeai
+uvicorn
+streamlit 
+httpx
+sqlalchemy
+sqlalchemy-utils
+fastapi
+passlib[bcrypt]
+python-jose[cryptography]
+langchain-core
+pydantic
+pydantic-settings
+requests

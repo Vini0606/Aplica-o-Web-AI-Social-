@@ -11,7 +11,7 @@ from typing import List, Optional
 from langchain_core.exceptions import OutputParserException
 import json
 
-def preencher_publicacoes_(llm, pilares):
+def preencher_publicacoes_(llm, pilares, objetivos, publico, posicionamento):
 
     # 1. Definição da estrutura de saída com Pydantic
     class Reel(BaseModel):
@@ -65,66 +65,75 @@ def preencher_publicacoes_(llm, pilares):
         imagens: List[Imagem]
         stories: List[Stories]
 
-    # 2. Carregamento e processamento do documento
-    loader = UnstructuredWordDocumentLoader("reports\Estrategia.docx")
-    docs = loader.load()
-    
-    # Juntamos o conteúdo de todas as páginas/seções em um único texto
-    documento_completo = "\n".join([doc.page_content for doc in docs])
+    # Convert dicts to JSON strings as before
+    objetivos_str = json.dumps(objetivos, indent=2, ensure_ascii=False)
+    publico_str = json.dumps(publico, indent=2, ensure_ascii=False)
+    posicionamento_str = json.dumps(posicionamento, indent=2, ensure_ascii=False)
 
-    # 3. Inicialização do modelo e do parser
     parser = PydanticOutputParser(pydantic_object=PlanoDeConteudo)
-
     todos_os_reels = []
     todos_os_carrosseis = []
     todas_as_imagens = []
     todos_os_stories = []
-
     historico_de_conteudo = {pilar['nome']: [] for pilar in pilares}
 
-    
-    for _ in range(4):
+    for _ in range(2):
         
-        # Loop principal para iterar sobre cada pilar
         for pilar in pilares:
-
-            nome_do_pilar_atual = pilar['nome']
             
+            nome_do_pilar_atual = pilar['nome']
             print(f"Gerando conteúdo para o pilar: {nome_do_pilar_atual}...")
-
             conteudo_existente = historico_de_conteudo.get(nome_do_pilar_atual, [])
             historico_formatado = "\n".join(f"- {item}" for item in conteudo_existente)
-            
-            # 4. Criação do prompt - MODIFICADO para focar em um pilar por vez
-            prompt_template = f"""
-            Com base na seguinte estratégia geral do cliente:
-            ---
-            {{documento}}
-            ---
-            Atue como um especialista em mídias sociais e crie um plano de conteúdo para o Instagram
-            focado EXCLUSIVAMENTE no pilar de conteúdo: "{nome_do_pilar_atual}".
 
-            # CONTEÚDO JÁ CRIADO PARA ESTE PILAR (EVITE REPETIR OS MESMOS TEMAS):
+            # ⬇️⬇️ START OF CHANGES ⬇️⬇️
+
+            # 1. Use a regular multiline string, not an f-string.
+            #    Use placeholders {objetivos}, {publico}, etc.
+            prompt_template = """
+            Você é um estrategista de conteúdo sênior, especialista em criar posts virais e de alto engajamento para o Instagram.
+
+            # INFORMAÇÕES ESTRATÉGICAS DO CLIENTE:
             ---
-            {{historico}}
+            ## OBJETIVOS:
+            {objetivos}
+
+            ## PÚBLICO-ALVO:
+            {publico}
+
+            ## POSICIONAMENTO E TOM DE VOZ:
+            {posicionamento}
+            ---
+
+            # SUA TAREFA:
+            Crie um plano de conteúdo para o Instagram focado EXCLUSIVAMENTE no pilar de conteúdo: "{pilar_atual}".
+            O conteúdo deve ser EXTREMAMENTE CRIATIVO e DIVERSIFICADO.
+
+            # REGRAS PARA CRIATIVIDADE (ESSENCIAL):
+            1.  **Variedade de Ângulos**: Não crie posts com a mesma ideia. Para cada post, use um ângulo diferente (ex: tutorial passo a passo, desmistificar um mito, contar uma história, fazer uma pergunta polêmica, mostrar bastidores).
+            2.  **Conexão com o Público**: O conteúdo deve resolver uma "dor" ou apelar para um "interesse" do público-alvo definido.
+            3.  **Variação de CTA**: Não use sempre a mesma Call-to-Action. Varie entre "Comente sua opinião", "Salve este post", "Compartilhe com um amigo", "Faça uma pergunta nos comentários", etc.
+            4.  **Alinhamento com o Tom de Voz**: O texto (legenda, título) deve seguir o tom de voz definido no posicionamento.
+            5.  **Evitar Repetição**: O conteúdo abaixo já foi criado. NÃO REPITA estes temas ou ideias.
+            ---
+            ## CONTEÚDO JÁ CRIADO PARA ESTE PILAR:
+            {historico}
             ---
             
-            # INSTRUÇÕES IMPORTANTES:
-            # 1. Gere 6 posts de Reels, 3 post de Carrossel, 3 post de Imagem e 10 sequências de Stories.
-            # 2. O conteúdo deve ser único e diretamente relacionado ao pilar "{nome_do_pilar_atual}".
-            # 3. Sua resposta DEVE SER APENAS o objeto JSON, sem nenhum texto antes ou depois.
-            # 4. O resultado final deve ser um código JSON válido.
+            # INSTRUÇÕES DE GERAÇÃO:
+            - Gere 6 posts de Reels, 3 de Carrossel, 3 de Imagem e 9 sequências de Stories.
+            - Sua resposta DEVE SER APENAS o objeto JSON, sem nenhum texto antes ou depois.
 
-            {{format_instructions}}
+            {format_instructions}
             """
 
             prompt = PromptTemplate(
                 template=prompt_template,
-                input_variables=["documento"],
+                # 2. Define all the variables the template will need.
+                input_variables=["objetivos", "publico", "posicionamento", "pilar_atual", "historico"],
                 partial_variables={"format_instructions": parser.get_format_instructions()}
             )
-
-            # 5. Criação e execução da cadeia
+            
             chain = prompt | llm | parser
             chain_with_retries = chain.with_retry(
                 retry_if_exception_type=(OutputParserException, ValueError),
@@ -132,9 +141,14 @@ def preencher_publicacoes_(llm, pilares):
             )
 
             try:
-                # Invoca a cadeia para o pilar atual
-                resultado_pilar = chain_with_retries.invoke({"documento": documento_completo, "historico": historico_formatado})
-
+                # 3. Pass all the variables in the .invoke() call.
+                resultado_pilar = chain_with_retries.invoke({
+                    "objetivos": objetivos_str,
+                    "publico": publico_str,
+                    "posicionamento": posicionamento_str,
+                    "pilar_atual": nome_do_pilar_atual,
+                    "historico": historico_formatado
+                })
                 # Adiciona os resultados às listas principais
                 todos_os_reels.extend(resultado_pilar.reels)
                 todos_os_carrosseis.extend(resultado_pilar.carrossel)
@@ -154,9 +168,6 @@ def preencher_publicacoes_(llm, pilares):
             except Exception as e:
                 print(f"Falha ao processar o pilar {nome_do_pilar_atual}. Erro: {e}")
 
-            break
-        break
-
     # 6. Conversão para DataFrame e exportação (usando as listas acumuladas)
     df_dados_reels = pd.DataFrame([p.dict() for p in todos_os_reels])
     df_dados_carrossel = pd.DataFrame([p.dict() for p in todos_os_carrosseis])
@@ -175,6 +186,71 @@ def preencher_publicacoes_(llm, pilares):
         df_dados_stories.to_excel(writer, sheet_name='Stories', index=False)
 
     print(f"Relatório 'Publicações' salvo com sucesso em: {arquivo_saida}")
+
+from langchain_community.document_loaders import UnstructuredWordDocumentLoader # CORREÇÃO: Nova importação
+from config import settings
+from langchain.llms import OpenAI
+from langchain_community.document_loaders import TextLoader # Adicionado, se necessário
+from langchain.text_splitter import CharacterTextSplitter # Adicionado, se necessário
+from docx import Document
+from docx.shared import Inches
+import os
+
+# Certifique-se de que o LLM é passado para a função
+
+def preencher_publicacoes_(llm, pilares, objetivos, publico, posicionamento):
+    try:
+        # Carrega o documento modelo
+        # CORREÇÃO: Usando o caminho de settings.py
+        doc = Document(settings.TEMPLATE_PATH) # Ajustar para o seu caminho real do template
+
+        # Texto para o LLM
+        prompt_text = f"""
+        Com base nos seguintes pilares de conteúdo, objetivos, público-alvo e posicionamento, gere 5 sugestões detalhadas de posts para redes sociais. Cada sugestão deve incluir:
+        - Tema:
+        - Tipo de Conteúdo: (ex: Foto, Vídeo, Carrossel, Reels, Stories)
+        - Legenda:
+        - Chamada para Ação (CTA):
+        - Hashtags:
+        - Objetivo Associado:
+
+        Pilares de Conteúdo: {pilares}
+        Objetivos: {objetivos}
+        Público-alvo: {publico}
+        Posicionamento: {posicionamento}
+        """
+
+        # Gerar sugestões de posts usando o LLM
+        # Ajuste a chamada ao LLM conforme a sua integração
+        # Aqui, estamos usando o LLM diretamente para gerar o texto
+        print("Gerando sugestões de publicações com o LLM...")
+        suggestions_raw = llm.invoke(prompt_text).content # Supondo que .invoke() é o método para gerar texto
+        print("Sugestões geradas pelo LLM.")
+
+        # Exemplo de como você pode tentar parsear as sugestões em um formato estruturado
+        # Para um parsing mais robusto, você usaria PydanticOutputParser e um schema
+        suggestions_list = suggestions_raw.strip().split('\n\n') # Divide por blocos de sugestão
+
+        # Encontre o marcador no documento
+        for paragraph in doc.paragraphs:
+            if '[SUGESTOES_DE_PUBLICACAO]' in paragraph.text:
+                paragraph.text = paragraph.text.replace('[SUGESTOES_DE_PUBLICACAO]', '')
+                for suggestion in suggestions_list:
+                    if suggestion.strip():
+                        # Adiciona cada sugestão como um novo parágrafo
+                        run = paragraph.add_run(suggestion + '\n\n')
+                break # Sai do loop após encontrar e preencher
+
+        # Salva o documento atualizado
+        # CORREÇÃO: Usando o caminho de settings.py
+        doc.save(settings.REPORTS_PATH / "sugestoes_publicacoes.docx")
+        print(f"Relatório de publicações salvo em: {settings.REPORTS_PATH / 'sugestoes_publicacoes.docx'}")
+
+    except FileNotFoundError:
+        print(f"Erro: O arquivo de template não foi encontrado em {settings.TEMPLATE_PATH}")
+    except Exception as e:
+        print(f"Ocorreu um erro ao gerar o relatório de publicações: {e}")
+        raise # Re-lança o erro
 
 def preencher_publicacoes(llm, pilares, objetivos, publico, posicionamento):
 
@@ -242,9 +318,10 @@ def preencher_publicacoes(llm, pilares, objetivos, publico, posicionamento):
     todos_os_stories = []
     historico_de_conteudo = {pilar['nome']: [] for pilar in pilares}
 
-    for _ in range(4):
+    for _ in range(2):
         
         for pilar in pilares:
+            
             nome_do_pilar_atual = pilar['nome']
             print(f"Gerando conteúdo para o pilar: {nome_do_pilar_atual}...")
             conteudo_existente = historico_de_conteudo.get(nome_do_pilar_atual, [])

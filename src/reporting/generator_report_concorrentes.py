@@ -697,7 +697,7 @@ def Secao_2_3_Figura9(dados_pivot_periodos, dados_pivot_dias):
 def analisarFigura1(llm, document, client_name, dataframes):
             
     document.add_paragraph(f"A figura abaixo nos dá uma visão geral sobre quem são os melhores concorrentes da {client_name}, "
-                        "segundo os indicadores seguidores, seguindo, quantidade de posts de contagem de hashtags "
+                        "segundo os indicadores seguidores, seguindo, quantidade de posts e de contagem de hashtags, "
                         "tanto a nível de perfil quanto a nível de publicações.")
         
     # Adiciona Figura 1
@@ -1176,11 +1176,7 @@ def generate_full_report(llm, dataframes, client_name, output_path, template_pat
          'desempenho dos concorrentes. A pesquisa visa transformar dados brutos em '
          'inteligência acionável, aprofundando-se no que impulsiona o engajamento, '
          'quais formatos e temas de conteúdo geram maior interação, e quais os '
-         'melhores horários para publicação. O objetivo final é fornecer um '
-         'diagnóstico preciso e recomendações práticas para solucionar a '
-         'necessidade de compreender os elementos mais eficazes das estratégias '
-         'de concorrentes, permitindo que a empresa cliente fortaleça sua própria '
-         'presença digital e ganhe vantagem competitiva na plataforma.')
+         'melhores horários para publicação. ')
     document.add_paragraph(intro) 
 
     # 2. Analise de Concorrentes
@@ -1188,9 +1184,7 @@ def generate_full_report(llm, dataframes, client_name, output_path, template_pat
     texto_secao_2_1 = (f"Nesta seção será realizada uma análise comparativa entre os concorrentes do {nome_cliente}, "
             "a fim de traçar os seus perfis. Além de serem analisadas métricas de performance, frequência e recência, "
             "também serão analisados, qualitativamente, seus respectivos conteúdos, bem como o tom de voz, tópicos frequentes "
-            "e posicionamento de marca. O principal objetivo desta seção é o de avaliar a presença visual, textual e social "
-            "dos concorrentes e seus respectivos posicionamentos com indicadores e análises estratégicos dos perfis e conteúdos "
-            "dos concorrentes.")       
+            "e posicionamento de marca. ")       
     
     document.add_paragraph(texto_secao_2_1)
     
@@ -1203,9 +1197,7 @@ def generate_full_report(llm, dataframes, client_name, output_path, template_pat
     texto_secao_2_1 = (f"Nesta seção será realizada uma análise comparativa entre os as publicações dos concorrentes do {nome_cliente}, "
             "a fim de compreender suas respectivas estratégias de conteúdo. Além de serem analisadas métricas como curtidas e comentários "
             "também serão analisados, qualitativamente, seus respectivos conteúdos, bem como o tom de voz, tópicos frequentes "
-            "e posicionamento de marca. O principal objetivo desta seção é o de avaliar os pontos fortes das melhores publicações "
-            "dos concorrentes e seus respectivos posicionamentos com indicadores e análises estratégicos dos perfis e conteúdos "
-            "dos concorrentes.")
+            "e posicionamento de marca.")
     document.add_heading("2.2 Análise de Engajamento por Postagem", level=2)
     document.add_paragraph(texto_secao_2_1)  
     analises_figura_4 = analisarFigura4(llm, client_name, document, dataframes)
@@ -1238,12 +1230,12 @@ def generate_full_report(llm, dataframes, client_name, output_path, template_pat
             Formato: Responda apenas o parágrafo da análise.
             Requisito: Inicie o texto dizendo "Com base em todas as análises realizadas...".
             
-            Análises: {print('analises')}
-
-    """
+            Análises: {analises}
              
+    """ 
+    
     conclusao = llm.invoke(prompt)
     document.add_paragraph(conclusao.content.replace('\n',''))
-    
+
     # Salva o documento
     document.save(output_path)  

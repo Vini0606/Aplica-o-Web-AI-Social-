@@ -1,9 +1,10 @@
-# src/data_ingestion/apify_handler.py
-
 import os
 import json
 from apify_client import ApifyClient
-from apify_client._errors import ApifyClientError 
+from apify_client._errors import ApifyClientError
+import requests
+from config import settings
+import re 
 
 def get_apify_client() -> ApifyClient:
     """Inicializa e retorna uma instância do cliente da Apify.""" 
@@ -61,3 +62,73 @@ def get_data_from_run(client: ApifyClient, run: dict, output_path: str) -> list:
     except ApifyClientError as e:
         print(f"Erro ao buscar itens do dataset {dataset_id}: {e.message}") 
         return 
+    
+def extract_username_from_url(url: str) -> str | None:
+    """Extracts the username from an Instagram URL."""
+    match = re.search(r'instagram\.com/([a-zA-Z0-9_\.]+)/?.*', url)
+    if match:
+        # Exclude specific paths that are not usernames
+        excluded_paths = ['tv', 'explore', 'reels', 'p', 'locations']
+        username = match.group(1)
+        if username not in excluded_paths:
+            return username
+    return None
+
+def extrairDadosGoogleSerpAPI(keywords: list, localizacao: str, output_path: str) -> dict:
+
+    parte_keywords = " OR ".join([f'"{kw}"' for kw in keywords])
+        
+    # Monta a consulta final
+    query_completa = f"({parte_keywords}) AND {localizacao} site:instagram.com// -reel -p -locations -explore"
+
+    url = "https://app.zenserp.com/api/v2/search"
+    headers = {
+        "apikey": os.getenv("ZENSERP_API_KEY")
+    }
+    params = {
+        "q": query_completa,
+        "search_engine": "google.com",
+        'num': 100,
+    }
+
+    try:
+        
+        response = requests.get(url, headers=headers, params=params)
+        response.raise_for_status()  # Raise an exception for bad status codes
+        data = response.json()
+
+        with open(output_path, 'w', encoding='utf-8') as arquivo_json:
+            json.dump(data, arquivo_json)
+        
+    except requests.exceptions.RequestException as e:
+        print(f"An error occurred: {e}")
+
+def extrairDadosApifyInstagram(all_profiles_to_scan, profile_output, post_output, MAX_POSTS_PER_PROFILE):
+
+    # 3. Ingestão de Dados via Apify
+    print("\nIniciando a ingestão de dados da Apify...") 
+    apify_client = get_apify_client()
+
+    profile_usernames = [extract_username_from_url(url) for url in all_profiles_to_scan]
+    # Filter out None values and ensure uniqueness
+    profile_usernames = list(set([u for u in profile_usernames if u]))
+
+    profile_run = scrape_profile_data(apify_client, all_profiles_to_scan) 
+    profile_data = get_data_from_run(apify_client, profile_run, settings.PROFILE_PATH) 
+    
+    post_run = scrape_post_data(apify_client, profile_usernames, max_posts=MAX_POSTS_PER_PROFILE) 
+    post_data = get_data_from_run(apify_client, post_run, settings.POST_PATH)
+
+    
+    if not profile_data or not post_data:
+        print("Falha na coleta de dados da Apify. Encerrando.") 
+        return
+    else:
+        
+        with open(profile_output, 'w', encoding='utf-8') as arquivo_json:
+            json.dump(profile_data, arquivo_json)
+        
+        with open(post_output, 'w', encoding='utf-8') as arquivo_json:
+            json.dump(post_data, arquivo_json)
+        
+        return profile_data, post_data

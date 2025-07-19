@@ -1,44 +1,42 @@
 import os
-from langchain_groq import ChatGroq
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_nvidia_ai_endpoints import ChatNVIDIA
-import google.generativeai as genai
+from pathlib import Path
 from dotenv import load_dotenv
+from langchain_google_genai import ChatGoogleGenerativeAI # Exemplo: se estiver usando Gemini/Langchain
+import google.generativeai as genai
 
 load_dotenv(override=True)
 
 # Chaves de API
 NVIDIA_API_KEY = os.getenv("NVIDIA_API_KEY")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+# Configurações de Autenticação JWT (NOVO)
+SECRET_KEY = os.getenv("SECRET_KEY", "d1g7h6a9-2b3c-4d5e-6f7g-8h9i0j1k2l3m") # Use uma chave forte em produção!
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 30 # Tempo de expiração do token
 
 genai.configure(api_key=GEMINI_API_KEY)
 
-# Caminho base do projeto
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Caminhos para os diretórios de dados
-DATA_PATH = os.path.join(PROJECT_ROOT, 'data')
-RAW_DATA_PATH = os.path.join(PROJECT_ROOT, r'data/raw/')
-PROCESSED_DATA_PATH = os.path.join(PROJECT_ROOT, r'data/processed')
-BRIEFING_JSON_PATH = os.path.join(PROJECT_ROOT, r'data/processed/briefing.json')
-PROFILE_PATH = os.path.join(PROJECT_ROOT, r"data/raw/profile_data.json")
-POST_PATH = os.path.join(PROJECT_ROOT, r"data/raw/post_data.json")
-SEARCH_PATH = os.path.join(PROJECT_ROOT, r"data/raw/search_data.json")
+RAW_DATA_PATH = BASE_DIR / "data" / "raw"
+PROCESSED_DATA_PATH = BASE_DIR / "data" / "processed"
+REPORTS_PATH = BASE_DIR / "reports"
+TEMPLATE_PATH = BASE_DIR / "templates" / "template.docx"
 
-# Caminho para o diretório de relatórios
-REPORTS_PATH = os.path.join(PROJECT_ROOT, 'reports')
-BRIEFING_PATH = os.path.join(PROJECT_ROOT, r'reports\briefing.md')
-ESTRATEGIA_PATH = os.path.join(PROJECT_ROOT, r'reports\Estrategia.docx')
-CONCORRENTES_PATH = os.path.join(PROJECT_ROOT, r'reports\Concorrentes.docx')
+PROFILE_PATH = RAW_DATA_PATH / "profile_data.json"
+POST_PATH = RAW_DATA_PATH / "post_data.json"
+SEARCH_PATH = RAW_DATA_PATH / "search_data.json"
+BRIEFING_PATH = BASE_DIR / "briefing.md" # Assumindo que o briefing inicial está em um arquivo
+BRIEFING_JSON_PATH = PROCESSED_DATA_PATH / "briefing.json"
+ESTRATEGIA_PATH = REPORTS_PATH / "Estrategia para Instagram.docx"
+CONCORRENTES_PATH = REPORTS_PATH / "Análise de Concorrentes.docx"
 
-# Caminho para o template do Word
-TEMPLATE_PATH = os.path.join(PROJECT_ROOT, r'templates\template.docx') # [cite: 296]
+CHAT_HISTORY_PATH = PROCESSED_DATA_PATH / "chat_histories" # Nova pasta
+os.makedirs(CHAT_HISTORY_PATH, exist_ok=True) # Criar a pasta na inicialização
 
-# Parâmetros da API e de análise
-MAX_POSTS_PER_PROFILE = 5 #
 
-# Modelos de Linguagem (LLMs)
-LLM = ChatGroq(model="gemma2-9b-it", temperature=0.4)
-#LLM = ChatNVIDIA(model="google/gemma-2-9b-it", api_key=NVIDIA_API_KEY, temperature=0.2, top_p=0.7, max_tokens=1024)
+MAX_POSTS_PER_PROFILE = 5 # Exemplo de constante
+
+# Configuração do LLM (apenas um exemplo, ajuste conforme seu LLM)
+# Certifique-se que GOOGLE_API_KEY está no seu .env
 LLM = ChatGoogleGenerativeAI(model="gemini-2.0-flash", google_api_key=GEMINI_API_KEY)
-LLM_HIGH = ChatGroq(model="llama3-70b-8192", temperature=0.4)
