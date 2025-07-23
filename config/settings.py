@@ -12,16 +12,18 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 # Configurações de Autenticação JWT (NOVO)
 SECRET_KEY = os.getenv("SECRET_KEY", "d1g7h6a9-2b3c-4d5e-6f7g-8h9i0j1k2l3m") # Use uma chave forte em produção!
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30 # Tempo de expiração do token
+ACCESS_TOKEN_EXPIRE_MINUTES = 240 # Tempo de expiração do token
 
 genai.configure(api_key=GEMINI_API_KEY)
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+GDRIVE_PATH_CREDENTIALS = BASE_DIR / "gdrive-credentials.json"
 RAW_DATA_PATH = BASE_DIR / "data" / "raw"
 PROCESSED_DATA_PATH = BASE_DIR / "data" / "processed"
 REPORTS_PATH = BASE_DIR / "reports"
 TEMPLATE_PATH = BASE_DIR / "templates" / "template.docx"
+LOGO_PATH = BASE_DIR / "Logo.png"
 
 PROFILE_PATH = RAW_DATA_PATH / "profile_data.json"
 POST_PATH = RAW_DATA_PATH / "post_data.json"
@@ -30,6 +32,7 @@ BRIEFING_PATH = BASE_DIR / "briefing.md" # Assumindo que o briefing inicial est�
 BRIEFING_JSON_PATH = PROCESSED_DATA_PATH / "briefing.json"
 ESTRATEGIA_PATH = REPORTS_PATH / "Estrategia para Instagram.docx"
 CONCORRENTES_PATH = REPORTS_PATH / "Análise de Concorrentes.docx"
+PUBLICACOES_PATH = REPORTS_PATH / "publicações.xlsx"
 
 CHAT_HISTORY_PATH = PROCESSED_DATA_PATH / "chat_histories" # Nova pasta
 os.makedirs(CHAT_HISTORY_PATH, exist_ok=True) # Criar a pasta na inicialização

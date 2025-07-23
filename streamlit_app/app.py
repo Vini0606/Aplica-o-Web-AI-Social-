@@ -245,6 +245,7 @@ else:
             *Resposta: {informacao_extra}
             """
             with st.spinner("Analisando o briefing e gerando os relatórios... Isso pode levar alguns minutos."):
+                
                 try:
                     # 1. Enviar o briefing completo para o endpoint de análise
                     response_analyze = httpx.post(
@@ -264,8 +265,8 @@ else:
                     # Incluindo todos os relatórios novamente
                     report_endpoints = {
                         "estrategia": "/reports/estrategia",
-                        "publicacoes": "/reports/publicacoes",
-                        "concorrentes": "/reports/concorrentes" # Incluído novamente
+                        "publicacoes": "/reports/publicacoes"
+                        #"concorrentes": "/reports/concorrentes" # Incluído novamente
                     }
 
                     for report_name, endpoint_path in report_endpoints.items():
@@ -306,3 +307,25 @@ else:
                     st.error(f"Erro de conexão com a API: {e}. Verifique se o backend FastAPI está rodando.")
                 except Exception as e:
                     st.error(f"Ocorreu um erro inesperado: {e}")
+    
+                
+                                    # ETAPA 3: Upload para o Google Drive (NOVO BLOCO)
+
+            if False:
+                with st.spinner("Enviando relatórios para o Google Drive..."):
+                    try:
+                        # O nome da empresa foi capturado no formulário
+                        client_name_for_upload = nome_empresa 
+                        
+                        upload_response = httpx.post(
+                            f"{FASTAPI_BASE_URL}/reports/upload-to-drive",
+                            json={"client_name": client_name_for_upload},
+                            headers=get_auth_headers(),
+                            timeout=600 # Timeout para o upload
+                        )
+                        upload_response.raise_for_status()
+                        st.success("✅ " + upload_response.json().get("message"))
+                        st.balloons()
+
+                    except Exception as e:
+                        st.error(f"❌ Falha ao enviar arquivos para o Google Drive: {e}")

@@ -1,13 +1,19 @@
 # Ambientes Virtuais
-modulo_gestao_conteudo_av/
+ai_social_av/
 
 # Arquivo de credenciais
 .env
+.json
 
 # Diretórios de dados e relatórios
 data/
 reports/
+notebooks/
 
 # Caches do Python
 __pycache__/
 *.pyc
+
+# Arquivos Específicos
+fluxograma.md
+run_pipeline.py

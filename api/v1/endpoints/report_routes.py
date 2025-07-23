@@ -11,6 +11,59 @@ from models import Usuario
 # CORREÇÃO: Definindo o nome da instância do APIRouter como 'router'
 router = APIRouter(tags=["Report Generation"])
 
+from fastapi import APIRouter, HTTPException, Depends
+from pydantic import BaseModel # <-- IMPORTAÇÃO NOVA
+import json
+import os
+import pandas as pd
+from config import settings
+from src.analysis import engine
+from src.reporting import generator_report_concorrentes, generator_report_estrategia, generator_report_publicacoes
+from auth.dependencies import get_current_active_user
+from models import Usuario
+from src.data_ingestion.gdrive_uploader import upload_reports_to_drive
+
+router = APIRouter(tags=["Report Generation"])
+
+# NOVO MODELO PARA A REQUISIÇÃO DE UPLOAD
+class UploadRequest(BaseModel):
+    client_name: str
+
+# NOVO ENDPOINT DE UPLOAD
+@router.post("/reports/upload-to-drive")
+async def upload_generated_reports(
+    request_data: UploadRequest, 
+    current_user: Usuario = Depends(get_current_active_user)
+):
+    """
+    Pega os relatórios já gerados do disco e faz o upload para o Google Drive.
+    """
+    try:
+        client_name = request_data.client_name
+        print(f"Iniciando processo de upload para o cliente: {client_name}")
+
+        # Lista de arquivos que devem ter sido gerados pelas outras rotas
+        # Certifique-se que estes caminhos correspondem aos caminhos de saída dos seus geradores
+        files_to_upload = [
+            settings.ESTRATEGIA_PATH,
+            settings.PUBLICACOES_PATH, # Conforme o código em generator_report_publicacoes.py
+            settings.CONCORRENTES_PATH,
+        ]
+
+        upload_reports_to_drive(
+            client_name=client_name,
+            file_paths=files_to_upload,
+            credentials_path=settings.GDRIVE_PATH_CREDENTIALS # Caminho para suas credenciais
+        )
+
+        return {"message": f"Relatórios para '{client_name}' enviados com sucesso para o Google Drive."}
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=f"Arquivo não encontrado. Certifique-se de que os relatórios foram gerados primeiro. Erro: {e}")
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Erro durante o upload para o Google Drive: {str(e)}")
+
 @router.post("/reports/estrategia")
 async def generate_strategy_report(current_user: Usuario = Depends(get_current_active_user)): # Protegido
     """

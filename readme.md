@@ -63,8 +63,14 @@ Este projeto é um sistema avançado projetado para automatizar a análise de pe
     - Crie um arquivo chamado `.env` na raiz do projeto.
     - Adicione suas chaves de API. Você precisará de chaves para a Apify e para o Groq.
     ```env
-    APIFY_API_TOKEN="sua_chave_apify"
-    GROQ_API_KEY="sua_chave_groq"
+    APIFY_API_TOKEN="seu_token"
+    OPENAI_API_KEY="seu_token"
+    GROQ_API_KEY="seu_token"
+    SERPAPI_API_KEY="seu_token"
+    ZENSERP_API_KEY="seu_token"
+    NVIDIA_API_KEY="seu_token"
+    GEMINI_API_KEY="seu_token"
+    SECRET_KEY="seu_token"
     ```
 
 ## ▶️ Como Usar
