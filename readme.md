@@ -122,6 +122,29 @@ O processo é executado em etapas, orquestradas principalmente pelo `main.py` e 
     
     *   Os relatórios gerados estarão disponíveis na pasta `reports/`.
 
+### Executando o Backend FastAPI
+
+O backend da aplicação é construído com FastAPI e pode ser executado separadamente para fornecer os serviços da API.
+
+1.  **Navegue até a pasta raiz do projeto:**
+    
+    ```shell
+    cd Aplica-o-Web-AI-Social-
+    ```
+    
+2.  **Inicie o servidor FastAPI usando Uvicorn:**
+    
+    ```shell
+    uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    ```
+    
+    *   `main:app`: Refere-se à instância `app` dentro do arquivo `main.py`.
+    *   `--host 0.0.0.0`: Permite que o servidor seja acessível de outras máquinas na rede (útil para implantação ou acesso externo).
+    *   `--port 8000`: Define a porta em que o servidor irá rodar (pode ser alterada se necessário).
+    *   `--reload`: Habilita o recarregamento automático do servidor a cada alteração no código (ótimo para desenvolvimento).
+
+3.  A API estará disponível em `http://localhost:8000` (ou o IP da sua máquina) e a documentação interativa (Swagger UI) em `http://localhost:8000/docs`.
+
 ### Via Aplicação Web Streamlit
 
 1.  **Inicie a aplicação Streamlit:**
@@ -209,4 +232,3 @@ Este projeto está licenciado sob a licença MIT. Veja o arquivo `LICENSE` para 
 ## 📞 Contato
 
 Para dúvidas ou suporte, entre em contato com Vini0606 através do GitHub.
-
