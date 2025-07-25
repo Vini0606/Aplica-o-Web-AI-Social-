@@ -91,7 +91,7 @@ def preencher_publicacoes_(llm, pilares, objetivos, publico, posicionamento):
             # 1. Use a regular multiline string, not an f-string.
             #    Use placeholders {objetivos}, {publico}, etc.
             prompt_template = """
-            Você é um estrategista de conteúdo sênior, especialista em criar posts virais e de alto engajamento para o Instagram.
+            Você é um estrategista de conteúdo sênior, especialista em criar posts com conteúdo de valor.
 
             # INFORMAÇÕES ESTRATÉGICAS DO CLIENTE:
             ---

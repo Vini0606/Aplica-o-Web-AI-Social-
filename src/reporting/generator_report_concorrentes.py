@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from matplotlib import gridspec
 import seaborn as sns
 from docx import Document
-from docx.shared import Inches, Pt, RGBColor
+from docx.shared import Inches, Pt, RGBColor, Cm
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
@@ -17,6 +17,7 @@ from datetime import date
 import locale
 import numpy as np
 import time
+from config import settings
 
 try:
     locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
@@ -1113,38 +1114,79 @@ def analisarFigura9(llm, client_name, document, dataframes):
 
     return '\n'.join([analise.content.replace('\n',''), recomendacoes.content.replace('\n','')]) 
 
-# --- Funções de Geração de Seções
+# --- Funções de Formatação ---
+
+def definir_estilos(document):
+    """
+    Centraliza todas as modificações de estilo do documento para garantir consistência.
+    """
+    # 1. ALTERAR A FONTE PADRÃO (ESTILO 'NORMAL')
+    estilo_normal = document.styles['Normal']
+    fonte_normal = estilo_normal.font
+    fonte_normal.name = 'Abadi'
+    fonte_normal.size = Pt(11)
+
+    # 2. ALTERAR ESTILO DO TÍTULO PRINCIPAL (NÍVEL 1)
+    # Usado pela função `gerarCapa` e outros títulos de nível 1
+    estilo_h1 = document.styles['Heading 1']
+    fonte_h1 = estilo_h1.font
+    fonte_h1.name = 'Abadi'
+    fonte_h1.size = Pt(22)
+    fonte_h1.bold = True
+    fonte_h1.color.rgb = RGBColor(0x0A, 0x25, 0x40)
+    paragrafo_h1 = estilo_h1.paragraph_format
+    paragrafo_h1.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    paragrafo_h1.space_before = Pt(12)
+    paragrafo_h1.space_after = Pt(12)
+
+    # 3. ALTERAR ESTILO DOS SUBTÍTULOS (NÍVEL 2)
+    estilo_h2 = document.styles['Heading 2']
+    fonte_h2 = estilo_h2.font
+    fonte_h2.name = 'Abadi'
+    fonte_h2.size = Pt(14)
+    fonte_h2.bold = True
+    fonte_h2.color.rgb = RGBColor(0x0A, 0x25, 0x40)  # Azul corporativo
+    paragrafo_h2 = estilo_h2.paragraph_format
+    paragrafo_h2.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    paragrafo_h2.space_before = Pt(18)
+    paragrafo_h2.space_after = Pt(6)
+
+    # 4. ALTERAR ESTILO DOS TÍTULOS DE TÓPICOS (NÍVEL 3)
+    estilo_h3 = document.styles['Heading 3']
+    fonte_h3 = estilo_h3.font
+    fonte_h3.name = 'Abadi'
+    fonte_h3.size = Pt(12)
+    fonte_h3.bold = True
+    fonte_h3.color.rgb = RGBColor(0x0A, 0x25, 0x40)
+    paragrafo_h3 = estilo_h3.paragraph_format
+    paragrafo_h3.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    paragrafo_h3.space_before = Pt(10)
+    paragrafo_h3.space_after = Pt(4)
+
 def gerarCapa(document, titulo, cliente, autor, data):
     """
-    Gera um documento Word com capa e resumo profissional para uma análise de concorrentes.
-
-    Args:
-        titulo (str): O título do relatório.
-        cliente (str): O nome do cliente para quem a análise foi preparada.
-        autor (str): O nome do autor ou da agência/consultoria.
-        data (str): A data de publicação do relatório.
-        resumo_profissional (str): O texto do resumo profissional.
+    Gera a capa do documento Word. A formatação do título vem do estilo 'Heading 1'.
     """
-    # --- Seção da Capa ---
+    # 1. Adicionar a logo da empresa na capa
+    p_logo = document.add_paragraph()
+    p_logo.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    run_logo = p_logo.add_run()
+    # CORREÇÃO: Usando um valor sensato para a largura, como 6 cm.
+    run_logo.add_picture(str(settings.LOGO_PATH), width=Cm(6))
 
-    # Título do Relatório
-    titulo_principal = document.add_heading(titulo, level=1)
-    titulo_principal.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    for run in titulo_principal.runs:
-        run.font.size = Pt(24)
-        run.bold = True
+    # 2. Título do Relatório (usa o estilo 'Heading 1' definido anteriormente)
+    document.add_heading(titulo, level=1)
 
-    # Adiciona espaçamento após o título
-    document.add_paragraph()
-    document.add_paragraph()
-
-    # Informações do Cliente e Autor
+    # 3. Informações do Cliente e Autor
+    document.add_paragraph() # Espaçamento
     p_info = document.add_paragraph()
     p_info.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p_info.add_run(f'Preparado para:\n{cliente}\n\n').bold = True
-    p_info.add_run(f'Análise por:\n{autor}\n\n')
+    p_info.add_run(f'Preparado para:\n').bold = True
+    p_info.add_run(f'{cliente}\n\n')
+    p_info.add_run(f'Análise por:\n').bold = True
+    p_info.add_run(f'{autor}\n\n')
 
-    # Data
+    # 4. Data
     p_data = document.add_paragraph()
     p_data.alignment = WD_ALIGN_PARAGRAPH.CENTER
     p_data.add_run(data)
@@ -1156,7 +1198,9 @@ def generate_full_report(llm, dataframes, client_name, output_path, template_pat
     """Gera o relatório completo em .docx."""
    
     # Criar Documento
-    document = Document(template_path)
+    document = Document(settings.TEMPLATE_PATH)
+
+    definir_estilos(document)
 
     # Definir Informações do Cliente
     titulo_analise = "Análise de Concorrentes no Instagram"
@@ -1170,7 +1214,7 @@ def generate_full_report(llm, dataframes, client_name, output_path, template_pat
     gerarCapa(document, titulo_analise, nome_cliente, nome_autor, data_analise) 
     
     # 1. Introdução
-    document.add_heading("1.0 Introdução", level=1)
+    document.add_heading("1.0 Introdução", level=2)
     intro = ('Este relatório apresenta uma análise competitiva aprofundada do Instagram, '
          'utilizando uma metodologia baseada em dados para desvendar as táticas e o '
          'desempenho dos concorrentes. A pesquisa visa transformar dados brutos em '
@@ -1180,7 +1224,7 @@ def generate_full_report(llm, dataframes, client_name, output_path, template_pat
     document.add_paragraph(intro) 
 
     # 2. Analise de Concorrentes
-    document.add_heading("2.0 Análise dos Concorrentes", level=1)
+    document.add_heading("2.0 Análise dos Concorrentes", level=2)
     texto_secao_2_1 = (f"Nesta seção será realizada uma análise comparativa entre os concorrentes do {nome_cliente}, "
             "a fim de traçar os seus perfis. Além de serem analisadas métricas de performance, frequência e recência, "
             "também serão analisados, qualitativamente, seus respectivos conteúdos, bem como o tom de voz, tópicos frequentes "
@@ -1189,7 +1233,7 @@ def generate_full_report(llm, dataframes, client_name, output_path, template_pat
     document.add_paragraph(texto_secao_2_1)
     
     # 2.1 Análise de Perfil dos Concorrentes
-    document.add_heading("2.1 Análise de Perfil dos Concorrentes", level=2)
+    document.add_heading("2.1 Análise de Perfil dos Concorrentes", level=3)
     analises_figura_1 = analisarFigura1(llm, document, client_name, dataframes)
     analises_figura_3 = analisarFigura3(llm, client_name, document, dataframes)
     
@@ -1198,7 +1242,7 @@ def generate_full_report(llm, dataframes, client_name, output_path, template_pat
             "a fim de compreender suas respectivas estratégias de conteúdo. Além de serem analisadas métricas como curtidas e comentários "
             "também serão analisados, qualitativamente, seus respectivos conteúdos, bem como o tom de voz, tópicos frequentes "
             "e posicionamento de marca.")
-    document.add_heading("2.2 Análise de Engajamento por Postagem", level=2)
+    document.add_heading("2.2 Análise de Engajamento por Postagem", level=3)
     document.add_paragraph(texto_secao_2_1)  
     analises_figura_4 = analisarFigura4(llm, client_name, document, dataframes)
     analises_figura_5 = analisarFigura5(llm, client_name, document, dataframes)
@@ -1209,7 +1253,7 @@ def generate_full_report(llm, dataframes, client_name, output_path, template_pat
     texto_secao_2_1 = (f"Nesta seção será realizada uma análise temporal das publicações dos concorrentes do {nome_cliente}, "
                     "a fim de compreender suas respectivas estratégias de conteúdo, mais especificamente, quais os melhores horários, "
                     "periodos e dias para publicar no feed.")
-    document.add_heading("2.3 Frequência e Consistência de Publicação", level=2)
+    document.add_heading("2.3 Frequência e Consistência de Publicação", level=3)
     document.add_paragraph(texto_secao_2_1)
     analises_figura_7 = analisarFigura7(llm, client_name, document, dataframes)
     analises_figura_8 = analisarFigura8(llm, client_name, document, dataframes)
@@ -1221,7 +1265,7 @@ def generate_full_report(llm, dataframes, client_name, output_path, template_pat
                           analises_figura_8, analises_figura_9])
     
     # 3. Recomendações Gerais
-    document.add_heading("3.0 Conclusões\Recomendações Finais", level=1)
+    document.add_heading("3.0 Conclusões\Recomendações Finais", level=2)
     
     prompt = f""" 
             Persona: Você é um analista\estrategista de marketing de mídias sociais sênior, especialista em social metrics. 

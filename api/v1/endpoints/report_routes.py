@@ -85,7 +85,6 @@ async def generate_strategy_report(current_user: Usuario = Depends(get_current_a
             brief_data,
             caminho_saida=settings.ESTRATEGIA_PATH,
             nome_empresa=brief_data['objetivos']['client_name'],
-            responsavel=current_user.nome, # Usar o nome do usuário logado
             objetivos=list_objetivos,
             persona={
                 "Idade":  brief_data['publico']['idade'],

@@ -11,190 +11,200 @@ from docx import Document
 from docx.text.paragraph import Paragraph
 from copy import deepcopy
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.shared import Pt, Inches
+from docx.shared import Pt, Inches, Cm, RGBColor
 from datetime import date
+from config import settings
 
+# =================================================================
+# 헬 FUNÇÃO AUXILIAR PARA ESTILOS
+# =================================================================
+def definir_estilos(document):
+    """
+    Centraliza todas as modificações de estilo do documento para garantir consistência.
+    """
+    # 1. ALTERAR A FONTE PADRÃO (ESTILO 'NORMAL')
+    estilo_normal = document.styles['Normal']
+    fonte_normal = estilo_normal.font
+    fonte_normal.name = 'Abadi'
+    fonte_normal.size = Pt(11)
+
+    # 2. ALTERAR ESTILO DO TÍTULO PRINCIPAL (NÍVEL 1)
+    # Usado pela função `gerarCapa` e outros títulos de nível 1
+    estilo_h1 = document.styles['Heading 1']
+    fonte_h1 = estilo_h1.font
+    fonte_h1.name = 'Abadi'
+    fonte_h1.size = Pt(22)
+    fonte_h1.bold = True
+    fonte_h1.color.rgb = RGBColor(0x0A, 0x25, 0x40)
+    paragrafo_h1 = estilo_h1.paragraph_format
+    paragrafo_h1.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    paragrafo_h1.space_before = Pt(12)
+    paragrafo_h1.space_after = Pt(12)
+
+    # 3. ALTERAR ESTILO DOS SUBTÍTULOS (NÍVEL 2)
+    estilo_h2 = document.styles['Heading 2']
+    fonte_h2 = estilo_h2.font
+    fonte_h2.name = 'Abadi'
+    fonte_h2.size = Pt(14)
+    fonte_h2.bold = True
+    fonte_h2.color.rgb = RGBColor(0x0A, 0x25, 0x40)  # Azul corporativo
+    paragrafo_h2 = estilo_h2.paragraph_format
+    paragrafo_h2.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    paragrafo_h2.space_before = Pt(18)
+    paragrafo_h2.space_after = Pt(6)
+
+    # 4. ALTERAR ESTILO DOS TÍTULOS DE TÓPICOS (NÍVEL 3)
+    estilo_h3 = document.styles['Heading 3']
+    fonte_h3 = estilo_h3.font
+    fonte_h3.name = 'Abadi'
+    fonte_h3.size = Pt(12)
+    fonte_h3.bold = True
+    paragrafo_h3 = estilo_h3.paragraph_format
+    paragrafo_h3.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    paragrafo_h3.space_before = Pt(10)
+    paragrafo_h3.space_after = Pt(4)
+
+# =================================================================
+# 헬 FUNÇÃO PARA GERAR A CAPA
+# =================================================================
+def gerarCapa(document, titulo, cliente, autor, data):
+    """
+    Gera a capa do documento Word. A formatação do título vem do estilo 'Heading 1'.
+    """
+    # 1. Adicionar a logo da empresa na capa
+    p_logo = document.add_paragraph()
+    p_logo.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    run_logo = p_logo.add_run()
+    # CORREÇÃO: Usando um valor sensato para a largura, como 6 cm.
+    run_logo.add_picture(str(settings.LOGO_PATH), width=Cm(6))
+
+    # 2. Título do Relatório (usa o estilo 'Heading 1' definido anteriormente)
+    document.add_heading(titulo, level=1)
+
+    # 3. Informações do Cliente e Autor
+    document.add_paragraph() # Espaçamento
+    p_info = document.add_paragraph()
+    p_info.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_info.add_run(f'Preparado para:\n').bold = True
+    p_info.add_run(f'{cliente}\n\n')
+    p_info.add_run(f'Análise por:\n').bold = True
+    p_info.add_run(f'{autor}\n\n')
+
+    # 4. Data
+    p_data = document.add_paragraph()
+    p_data.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_data.add_run(data)
+    document.add_page_break()
+
+# =================================================================
+# 헬 FUNÇÃO PRINCIPAL PARA PREENCHER O PLANO
+# =================================================================
 def preencher_plano_marketing(
-    brief_data,          
-    caminho_saida,           
-    nome_empresa,            
-    responsavel,             
-    objetivos,               
-    persona,                 
+    brief_data,
+    caminho_saida,
+    nome_empresa,
+    objetivos,
+    persona,
     pilares_conteudo,
     posicionamento,
-    calendario=[]                                                     
+    calendario=[]
 ):
-
+    """
+    Gera o documento completo do plano de marketing de conteúdo.
+    """
     doc = Document()
 
-    titulo_principal = doc.add_heading("Plano de Marketing de Conteúdo para Instagram", level=1)
-    titulo_principal.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    for run in titulo_principal.runs:
-        run.font.size = Pt(24)
-        run.bold = True
+    # 1. APLICA TODOS OS ESTILOS AO DOCUMENTO ANTES DE COMEÇAR
+    definir_estilos(doc)
 
-    doc.add_paragraph(f"Empresa: {nome_empresa}")
-    doc.add_paragraph(f"Data: {date.today().strftime("%A, %d de %B de %Y")}")
-    doc.add_paragraph(f"Responsável: Equipe AI Social")
+    # 2. CONFIGURA O CABEÇALHO PARA TODAS AS PÁGINAS (EXCETO A CAPA)
+    section = doc.sections[0]
+    section.different_first_page_header_footer = True
+    header = section.header
+    p_header = header.add_paragraph()
+    p_header.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    run_header = p_header.add_run()
+    run_header.add_picture(str(settings.LOGO_PATH), height=Cm(3.5))
 
-    
-    # Conteúdo extra dinâmico ao final
+    # 3. GERA A CAPA
+    nome_cliente = brief_data['objetivos']['client_name']
+    gerarCapa(
+        document=doc,
+        titulo="Plano de Marketing de Conteúdo para Instagram",
+        cliente=nome_cliente,
+        autor="Equipe Social Planner",
+        data=f"{date.today().strftime('%A, %d de %B de %Y')}"
+    )
+
+    # 4. GERA O CONTEÚDO DO RELATÓRIO USANDO OS ESTILOS DEFINIDOS
     doc.add_heading("📌 Objetivos de Marketing", level=2)
     for objetivo in objetivos:
-        doc.add_paragraph(f"• {objetivo}")
+        doc.add_paragraph(f"{objetivo}", style='List Bullet')
 
     doc.add_heading("🎯 Público-alvo", level=2)
     for chave, valor in persona.items():
-        if type(valor) is not list:
-            doc.add_paragraph(f"{chave}: {valor}")
-        else:
-            doc.add_paragraph(f"{chave}: {', '.join(valor)}")
+        p = doc.add_paragraph()
+        p.add_run(f"{chave.replace('_', ' ').capitalize()}: ").bold = True
+        p.add_run(str(valor) if not isinstance(valor, list) else ', '.join(valor))
 
     doc.add_heading("🎙️ Posicionamento e Tom de Voz", level=2)
-    doc.add_paragraph(posicionamento['resumo_posicionamento']) # Adiciona o texto diretamente
-    
+    doc.add_paragraph(posicionamento['resumo_posicionamento'])
+
     doc.add_heading("📚 Pilares de Conteúdo", level=2)
     for pilar in pilares_conteudo:
         doc.add_heading(f"{pilar['nome']}", level=3)
-        doc.add_paragraph(f"{pilar['objetivo']} Exemplos de conteúdo:")
+        doc.add_paragraph(pilar['objetivo'])
+        doc.add_paragraph("Exemplos de conteúdo:")
         for exemplo in pilar.get('exemplos', []):
-            doc.add_paragraph(f"• {exemplo}")
-    
-    doc.add_heading("◼️ Formatos:", level=2)
-    doc.add_paragraph(f"""• Reels (Prioridade Alta): Tutoriais e dicas, Bastidores, Desafios e trends, Reações, """  
-                      """Conteúdo educacional, Moda e tendências, 'Antes e depois', Comentários e agradecimentos, Conteúdo informativo e de entretenimento. """)
-    doc.add_paragraph(f"""• Carrossel (Prioridade Média): Tutoriais e dicas, Listas, Comparativos, """ 
-                      """Storytelling, Depoimentos, Catálogos de produtos, Imagens contínuas, """ 
-                      """Vídeos, Jogos e desafios, Conteúdo educativo, Posts de identificação, Anúncios. """)
-    doc.add_paragraph(f"""• Imagem Estática (Prioridade Média): Fotos, Ilustrações, Infográficos, """
-                      """Ícones e Símbolos, Imagens para redes sociais, e-books e materiais digitais. """)
-    doc.add_paragraph(f"""• Stories (Prioridade Alta): Enquetes, Perguntas e Respostas, Desafios e trends, """ 
-                      """Mostre os bastidores, Dicas e tutoriais, Guia de produtos, Promoções, """ 
-                      """Lançamentos, Vídeos curtos, Carrosséis, Uso de adesivos e GIFs, Reposts de clientes """)
-    doc.add_paragraph(f"""• Lives (Prioridade Baixa): Debates, Entrevistas, Tutoriais e "Como fazer", """
-                      """Bastidores, Gameplays, Eventos ao vivo, Conteúdo interativo, """ 
-                      """Conteúdo temático, Sessões de perguntas e respostas, Apresentações e palestras. """)
-
+            doc.add_paragraph(f"{exemplo}", style='List Bullet')
 
     doc.add_heading("🗓️ Calendário Editorial Sugerido", level=2)
-    doc.add_paragraph(
-        "A seguir, uma sugestão de calendário semanal para distribuir os pilares de conteúdo. "
-        "Este cronograma pode ser adaptado conforme a performance e o feedback do público."
-    )
     if calendario:
-        
-        # Definir os cabeçalhos da tabela
-        headers = ["Dia", "Pilar de Conteúdo", "Horário Sugerido"]
-        
-        # Adicionar a tabela com uma linha de cabeçalho
-        table = doc.add_table(rows=1, cols=len(headers))
-        table.style = 'Table Grid' # Aplica um estilo de grade à tabela
-        
-        # Preencher o cabeçalho
+        table = doc.add_table(rows=1, cols=3)
+        table.style = 'Table Grid'
         hdr_cells = table.rows[0].cells
-        for i, header in enumerate(headers):
-            hdr_cells[i].text = header
-            # Deixar o cabeçalho em negrito
-            hdr_cells[i].paragraphs[0].runs[0].font.bold = True
-
-        # Preencher as linhas com os dados do calendário
+        hdr_cells[0].text = 'Dia'
+        hdr_cells[1].text = 'Pilar de Conteúdo'
+        hdr_cells[2].text = 'Horário Sugerido'
+        for cell in hdr_cells:
+            cell.paragraphs[0].runs[0].font.bold = True
         for item in calendario:
             row_cells = table.add_row().cells
             row_cells[0].text = item.get('dia', 'N/A')
             row_cells[1].text = item.get('pilar', 'N/A')
             row_cells[2].text = item.get('periodo', 'N/A')
-
-        # Ajustar a largura das colunas (opcional, mas melhora a aparência)
-        # As larguras são apenas exemplos, ajuste conforme necessário
-        widths = (Inches(1.2), Inches(1.5), Inches(1.5))
-        for row in table.rows:
-            for idx, width in enumerate(widths):
-                row.cells[idx].width = width
     else:
         doc.add_paragraph("Nenhuma sugestão de calendário foi gerada.")
-    
+
+    # ... (Adicione outras seções como 'Formatos', 'Estratégia de Engajamento', 'KPIs' aqui)
     doc.add_heading("📈 Estratégia de Engajamento e Crescimento", level=2)
-    doc.add_paragraph(f"""• Interação Proativa: Dedicar 30 minutos por dia para responder a todos os """  
-                      """comentários e DMs, e interagir em posts de perfis da nossa persona e de parceiros. """)
-    doc.add_paragraph(f"""• Uso Estratégico de Hashtags: Pesquisar e utilizar uma mistura de hashtags de nicho, """ 
-                      """de volume médio e de baixa concorrência (5-15 por post). """)
-    doc.add_paragraph(f"""• Call to Actions (CTAs) Claras: Em cada post, incentivar uma ação: "Salve este post",""" 
-                     """ "Comente sua opinião", "Compartilhe com um amigo", "Clique no link da bio". """)
-    doc.add_paragraph(f"""• Colaborações: Realizar collabs (posts em conjunto) e lives com outras """ 
-                      """marcas ou influenciadores que tenham um público semelhante. """)
-    doc.add_paragraph(f"""• Conteúdo Gerado pelo Usuário (UGC): Incentivar clientes a postarem """ 
-                      """fotos com nossos produtos e repostar em nossos stories e feed, sempre dando os devidos créditos. """)
-    
-    doc.add_heading("📚 Métricas e Análise de Desempenho (KPIs)", level=2)
-    doc.add_paragraph(f"""• Alcance e Impressões: Quantas pessoas estão vendo nosso conteúdo. """)
-    doc.add_paragraph(f"""• Taxa de Engajamento: (Curtidas + Comentários + Salvamentos) / Alcance. """ 
-                      """Acompanhar a evolução dessa taxa é mais importante do que o número bruto de curtidas. """)
-    doc.add_paragraph(f"""• Cliques no Link da Bio: Medir o tráfego gerado para o site ou WhatsApp. """)
-    doc.add_paragraph(f"""• Crescimento de Seguidores: Acompanhar o crescimento líquido (novos seguidores - deixaram de seguir). """)
-    doc.add_paragraph(f"""• Visualizações e Retenção nos Reels: Analisar quais vídeos prendem mais a atenção. """)
-    doc.add_paragraph(f"""• Conversões: (Leads ou Vendas) - Acompanhar através de cupons de desconto exclusivos para o Instagram ou parâmetros UTM nos links. """)
-    
+    doc.add_paragraph("Interação Proativa: Dedicar tempo para responder comentários e DMs.", style='List Bullet')
+    doc.add_paragraph("Uso Estratégico de Hashtags: Misturar hashtags de nicho e de volume.", style='List Bullet')
+    doc.add_paragraph("Call to Actions (CTAs) Claras: Incentivar ações como salvar, comentar, etc.", style='List Bullet')
 
-    # Criar pasta se não existir
+    # 5. SALVA O DOCUMENTO FINAL
     os.makedirs(os.path.dirname(caminho_saida), exist_ok=True)
-
-    # Salvar documento
     doc.save(caminho_saida)
     print(f"✅ Relatório gerado com sucesso: {caminho_saida}")
 
-# =====================
-# 🎯 EXEMPLO DE USO
-# =====================
+# =================================================================
+# 🎯 BLOCO DE EXECUÇÃO PRINCIPAL
+# =================================================================
 if __name__ == "__main__":
-    
+    with open(settings.BRIEFING_JSON_PATH, 'r', encoding='utf-8') as arquivo_json:
+        brief_data = json.load(arquivo_json)
+
+    objetivo_principal = [brief_data['objetivos']['objetivo_principal']]
+    objetivos_secundarios = brief_data['objetivos']['objetivo_secundario']
+    list_objetivos = objetivo_principal + objetivos_secundarios
+
     preencher_plano_marketing(
-        caminho_saida=r"reports\Relatorio_Marketing_Preenchido.docx",
-        nome_empresa="Loja Criativa",
-        responsavel="João da Silva",
-        objetivos=[
-            "Aumentar as vendas online em 15% nos próximos 6 meses",
-            "Aumentar os seguidores em 20% no próximo trimestre",
-            "Melhorar a taxa de engajamento em 10% ao mês"
-        ],
-        persona={
-            "Nome": "Sofia, a Empreendedora Criativa",
-            "Idade": "25-35 anos",
-            "Gênero": "Feminino",
-            "Localização": "Capitais do Brasil",
-            "Ocupação": "Artesã e dona de pequeno negócio",
-            "Interesses": "DIY, dicas de negócio, Reels e stories interativos",
-            "Dores": "Falta de tempo, organização financeira"
-        },
-        pilares_conteudo=[
-            {
-                "nome": "Educacional",
-                "objetivo": "Ensinar e informar",
-                "exemplos": ["Tutoriais", "Dicas rápidas"]
-            },
-            {
-                "nome": "Inspiração",
-                "objetivo": "Conectar emocionalmente",
-                "exemplos": ["Frases", "Histórias de sucesso"]
-            },
-            {
-                "nome": "Entretenimento",
-                "objetivo": "Engajar e entreter",
-                "exemplos": ["Memes", "Desafios", "Enquetes"]
-            },
-            {
-                "nome": "Vendas",
-                "objetivo": "Converter e vender",
-                "exemplos": ["Depoimentos", "Ofertas", "Lançamentos"]
-            }
-        ],
-        calendario=[
-            {"dia": "Segunda", "pilar": "Inspiração", "formato": "Imagem ou Carrossel", "horario": "09:00"},
-            {"dia": "Terça", "pilar": "Educacional", "formato": "Reels", "horario": "12:00"},
-            {"dia": "Quarta", "pilar": "Entretenimento", "formato": "Stories interativos", "horario": "Ao longo do dia"},
-            {"dia": "Quinta", "pilar": "Educacional", "formato": "Reels ou Carrossel", "horario": "18:00"},
-            {"dia": "Sexta", "pilar": "Vendas", "formato": "Reels ou Carrossel", "horario": "11:00"},
-            {"dia": "Sábado", "pilar": "Bastidores", "formato": "Stories ou Reels", "horario": "10:00"},
-            {"dia": "Domingo", "pilar": "Leve / Planejamento", "formato": "Imagem", "horario": "20:00"}
-        ]
+        brief_data=brief_data,
+        caminho_saida=settings.ESTRATEGIA_PATH,
+        nome_empresa=brief_data['objetivos']['client_name'],
+        objetivos=list_objetivos,
+        persona=brief_data['publico'],
+        pilares_conteudo=brief_data['pilares'],
+        posicionamento=brief_data['posicionamento'],
+        calendario=brief_data.get('calendario', [])
     )

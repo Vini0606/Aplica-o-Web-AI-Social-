@@ -32,21 +32,6 @@ from api.v1.endpoints import report_routes
 def main():
     
     load_dotenv(override=True) # Carrega as variáveis de ambiente no início da aplicação
-
-    app = FastAPI(
-        title="Social Media Analysis API",
-        description="API para análise de mídias sociais e geração de relatórios.",
-        version="1.0.0",
-    )
-
-    # Incluir os routers
-    app.include_router(brief_routes.router, prefix="/api/v1")
-    app.include_router(data_routes.router, prefix="/api/v1")
-    app.include_router(report_routes.router, prefix="/api/v1")
-
-    @app.get("/")
-    async def root():
-        return {"message": "Bem-vindo à Social Media Analysis API!"}
     
     print("Iniciando o processo de geração de relatório...") 
     load_dotenv(override=True)
@@ -160,5 +145,45 @@ def main():
     )
 
 if __name__ == "__main__":
+
+    load_dotenv(override=True) # Carrega as variáveis de ambiente no início da aplicação
+    
+    print("Iniciando o processo de geração de relatório...") 
+    load_dotenv(override=True)
+    os.makedirs(settings.REPORTS_PATH, exist_ok=True)
+    os.makedirs(settings.RAW_DATA_PATH, exist_ok=True)
+    os.makedirs(settings.PROCESSED_DATA_PATH, exist_ok=True)
+    llm = settings.LLM
      
-    main()
+    with open(settings.BRIEFING_JSON_PATH, 'r', encoding='utf-8') as arquivo_json:
+        brief_data = json.load(arquivo_json)
+
+    profile_df = engine.load_profiles_to_df(settings.PROFILE_PATH) 
+    posts_df = engine.load_posts_to_df(settings.POST_PATH)
+    profiles_posts_df = engine.load_join_profiles_posts(posts_df, profile_df)
+
+    dataframes = {}
+
+    list_dfs_pivot = engine.load_top_3_profiles(posts_df, profile_df)
+    list_dfs_periodo = engine.load_periodo_dias(posts_df, profile_df)
+    list_dfs_pivot_periodo = engine.load_pivot_periodo_dias(posts_df, profile_df)
+    dataframes['df_profiles_posts'] = profiles_posts_df
+    dataframes['posts_df'] = posts_df
+    dataframes['dados_pivot_count'] = list_dfs_pivot[0]
+    dataframes['dados_pivot_total'] = list_dfs_pivot[1]
+    dataframes['dados_pivot_likes'] =  list_dfs_pivot[2]
+    dataframes['dados_pivot_comments'] = list_dfs_pivot[3]
+    dataframes['periodo_df'] = list_dfs_periodo[0]
+    dataframes['dias_df'] = list_dfs_periodo[1]
+    dataframes['dados_pivot_periodos'] = list_dfs_pivot_periodo[0] 
+    dataframes['dados_pivot_dias'] = list_dfs_pivot_periodo[1]
+
+    generator_report_concorrentes.generate_full_report(
+        llm,
+        dataframes,
+        client_name=brief_data['objetivos']['client_name'],
+        output_path=settings.CONCORRENTES_PATH,
+        template_path=settings.TEMPLATE_PATH,
+    )    
+    
+

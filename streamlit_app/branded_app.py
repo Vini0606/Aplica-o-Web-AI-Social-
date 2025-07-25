@@ -268,23 +268,168 @@ else:
     </div>
     """, unsafe_allow_html=True)
     
-    if st.button("Gerar Relatórios Finais", key="generate_all_reports_button_hidden", type="primary"):
+    if st.button("Gerar Relatórios Finais", key="generate_all_reports_button"):
+        
         if not validate_briefing_fields():
-            st.warning("Atenção: Por favor, preencha todos os campos do briefing para garantir uma análise completa e precisa.")
+            st.warning("Por favor, preencha TODOS os campos do briefing antes de gerar os relatórios.")
         else:
-            # Construir o texto do briefing (mesma lógica do original)
-            full_briefing_text = f"""...""" # (O texto completo do briefing é construído aqui como no original)
+            # Construir o texto completo do briefing a partir dos campos do formulário
+            full_briefing_text = f"""
+            # Briefing de Social Media
 
+            ## Sobre a Empresa e Marca
+
+            1. Pergunta Original: Qual é o nome da sua empresa?
+            *Resposta: {nome_empresa}
+
+            2. Pergunta Original: Em poucas palavras, o que a "Pão da Vila" faz e qual problema ela resolve?
+            *Resposta: {o_que_faz}
+
+            3. Pergunta Original: Quais são os valores e a personalidade da "Pão da Vila"?
+            *Resposta: {valores_personalidade}
+
+            4. Pergunta Original: Como você espera que a "Pão da Vila" seja percebida pelo seu público?
+            *Resposta: {percepcao_desejada}
+
+            5. Pergunta Original: Quais são os seus produtos e/ou serviços detalhadamente?
+            *Resposta: {produtos_servicos}
+
+            6. Pergunta Original: Quais são os principais produtos ou serviços que você deseja promover nas redes sociais?
+            *Resposta: {produtos_promover}
+
+            7. Pergunta Original: Quem são seus principais concorrentes diretos e indiretos?
+            *Resposta: {concorrentes}
+
+            8. Pergunta Original: Quem é o seu cliente ideal? Descreva um perfil geral.
+            *Resposta: {cliente_ideal_geral}
+
+            9. Pergunta Original: Qual a faixa de idade do seu cliente ideal?
+            *Resposta: {cliente_idade}
+
+            10. Pergunta Original: Qual o gênero predominante do seu cliente ideal?
+            *Resposta: {cliente_genero}
+
+            11. Pergunta Original: Onde seu público ideal mora, trabalha ou frequenta?
+            *Resposta: {cliente_localizacao}
+
+            12. Pergunta Original: Quais são os principais interesses do seu público?
+            *Resposta: {cliente_interesses}
+
+            13. Pergunta Original: Qual a faixa de renda aproximada do seu cliente ideal?
+            *Resposta: {cliente_renda}
+
+            14. Pergunta Original: Quais são as principais dores, necessidades e desejos do seu público?
+            *Resposta: {cliente_dores_necessidades_desejos}
+
+            15. Pergunta Original: Qual é o principal objetivo com a gestão de redes sociais?
+            *Resposta: {objetivo_principal_social}
+
+            16. Pergunta Original: Você tem alguma meta específica em mente?
+            *Resposta: {metas_especificas}
+
+            17. Pergunta Original: Qual é o resultado esperado que irá justificar seu investimento na estratégia?
+            *Resposta: {resultado_justificar_investimento}
+
+            18. Pergunta Original: Em quais redes sociais você acredita que seu público está mais ativo?
+            *Resposta: {redes_sociais_ativas}
+
+            19. Pergunta Original: Que tipo de conteúdo você gostaria de ver nas suas redes sociais?
+            *Resposta: {tipo_conteudo_desejado}
+
+            20. Pergunta Original: Qual é o tom de voz que devemos usar nas redes sociais?
+            *Resposta: {tom_de_voz_desejado}
+
+            21. Pergunta Original: Existe algum assunto ou abordagem que você gostaria de EVITAR nas redes sociais?
+            *Resposta: {assunto_evitar}
+
+            23. Pergunta Original: Você já possui algum material de marketing que possamos usar?
+            *Resposta: {material_marketing}
+
+            24. Pergunta Original: Existe mais alguma informação que você acha que eu deveria saber sobre a "Pão da Vila antes de começarmos a estratégia?
+            *Resposta: {informacao_extra}
+            """
             with st.spinner("Analisando o briefing e gerando os relatórios... Isso pode levar alguns minutos."):
+                
                 try:
-                    # 1. Analisar Briefing
-                    # ... (código da chamada para /briefing/analyze como no original)
+                    # 1. Enviar o briefing completo para o endpoint de análise
+                    response_analyze = httpx.post(
+                        f"{FASTAPI_BASE_URL}/briefing/analyze",
+                        json={"briefing_text": full_briefing_text},
+                        headers=get_auth_headers(),
+                        timeout=300
+                    )
+                    response_analyze.raise_for_status()
+                    st.session_state.brief_data = response_analyze.json()
                     st.success("Briefing analisado com sucesso pela IA!")
 
-                    # 2. Gerar Relatórios
+                    # 2. Disparar a geração dos relatórios (chama os endpoints PROTEGIDOS)
                     st.subheader("Iniciando Geração dos Relatórios...")
-                    # ... (código da chamada para os endpoints de relatório como no original)
-                    st.success("✅ Relatórios gerados com sucesso!")
+                    reports_status = {}
 
+                    # Incluindo todos os relatórios novamente
+                    report_endpoints = {
+                        "estrategia": "/reports/estrategia",
+                        "publicacoes": "/reports/publicacoes",
+                        "concorrentes": "/reports/concorrentes" # Incluído novamente
+                    }
+
+                    for report_name, endpoint_path in report_endpoints.items():
+                        st.info(f"Gerando relatório de {report_name.replace('_', ' ').title()}...")
+                        try:
+                            report_response = httpx.post(
+                                f"{FASTAPI_BASE_URL}{endpoint_path}",
+                                headers=get_auth_headers(),
+                                timeout=3200 # Aumente o timeout para relatórios
+                            )
+                            report_response.raise_for_status()
+                            reports_status[report_name] = "sucesso"
+                            st.success(f"✅ Relatório de {report_name.replace('_', ' ').title()} gerado com sucesso!")
+                        except httpx.HTTPStatusError as e:
+                            reports_status[report_name] = f"falha: {e.response.status_code} - {e.response.text}"
+                            st.error(f"❌ Erro ao gerar relatório de {report_name.replace('_', ' ').title()}: {e.response.status_code} - {e.response.text}")
+                        except httpx.RequestError as e:
+                            reports_status[report_name] = f"falha: Erro de conexão - {e}"
+                            st.error(f"❌ Erro de conexão ao gerar relatório de {report_name.replace('_', ' ').title()}: {e}")
+                        except Exception as e:
+                            reports_status[report_name] = f"falha: {e}"
+                            st.error(f"❌ Ocorreu um erro inesperado ao gerar relatório de {report_name.replace('_', ' ').title()}: {e}")
+
+                    st.subheader("Status Final da Geração dos Relatórios:")
+                    for report_name, status in reports_status.items():
+                         if "sucesso" in status:
+                             st.success(f"✅ Relatório de {report_name.replace('_', ' ').title()}: {status}")
+                         elif "falha" in status:
+                             st.error(f"❌ Relatório de {report_name.replace('_', ' ').title()}: {status}")
+                         else:
+                             st.warning(f"⚠️ Relatório de {report_name.replace('_', ' ').title()}: {status}")
+
+                    st.markdown("Os arquivos `.docx` foram salvos no diretório `reports` do seu backend.")
+
+                except httpx.HTTPStatusError as e:
+                    st.error(f"Erro na API ao analisar o briefing: {e.response.status_code} - {e.response.text}")
+                except httpx.RequestError as e:
+                    st.error(f"Erro de conexão com a API: {e}. Verifique se o backend FastAPI está rodando.")
                 except Exception as e:
-                    st.error(f"❌ Ocorreu um erro inesperado: {e}")
+                    st.error(f"Ocorreu um erro inesperado: {e}")
+    
+                
+                                    # ETAPA 3: Upload para o Google Drive (NOVO BLOCO)
+
+            if False:
+                with st.spinner("Enviando relatórios para o Google Drive..."):
+                    try:
+                        # O nome da empresa foi capturado no formulário
+                        client_name_for_upload = nome_empresa 
+                        
+                        upload_response = httpx.post(
+                            f"{FASTAPI_BASE_URL}/reports/upload-to-drive",
+                            json={"client_name": client_name_for_upload},
+                            headers=get_auth_headers(),
+                            timeout=600 # Timeout para o upload
+                        )
+                        upload_response.raise_for_status()
+                        st.success("✅ " + upload_response.json().get("message"))
+                        st.balloons()
+
+                    except Exception as e:
+                        st.error(f"❌ Falha ao enviar arquivos para o Google Drive: {e}")
